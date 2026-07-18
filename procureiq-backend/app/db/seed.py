@@ -165,5 +165,26 @@ async def seed() -> None:
         print(f"[OK] Seeded {len(users)} users, {len(supplier_ids)} suppliers, contracts, and spend transactions.")
 
 
+async def auto_seed_if_empty() -> None:
+    """Called on startup. Seeds demo data only if the tenant has zero spend transactions.
+    This ensures the dashboard is never blank — demo data is shown until a real
+    Excel is uploaded, at which point /upload-dataset clears it and replaces it.
+    """
+    from sqlalchemy import select, func
+    from app.models.spend import SpendTransaction
+    async with async_session_factory() as db:
+        q = await db.execute(
+            select(func.count(SpendTransaction.id))
+            .where(SpendTransaction.tenant_id == TENANT_ID)
+        )
+        count = q.scalar_one() or 0
+        if count == 0:
+            print("[ProcureIQ] DB is empty — seeding demo dataset…")
+            await seed()
+            print("[ProcureIQ] Demo seed complete.")
+        else:
+            print(f"[ProcureIQ] DB has {count} spend records — skipping auto-seed.")
+
+
 if __name__ == "__main__":
     asyncio.run(seed())

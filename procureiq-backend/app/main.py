@@ -16,6 +16,15 @@ async def lifespan(_app: FastAPI):
     if settings.ENVIRONMENT == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+    # Auto-seed demo data if DB is empty (ensures dashboard is never blank)
+    try:
+        from app.db.seed import auto_seed_if_empty
+        await auto_seed_if_empty()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Auto-seed skipped: %s", exc)
+
     yield
     # Shutdown: nothing to close (async engine handles pool cleanup)
 

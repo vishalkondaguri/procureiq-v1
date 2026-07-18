@@ -16,37 +16,121 @@ import pandas as pd
 
 
 # Canonical sheet name → logical type
+# Covers SAP, Oracle, Coupa, Ariba, manual spreadsheet naming conventions
 SHEET_TYPE_MAP: dict[str, str] = {
-    "spend_data":         "spend",
-    "spend":              "spend",
-    "transactions":       "spend",
-    "invoice_data":       "spend",
-    "purchase_orders":    "spend",
-    "pos":                "spend",
-    "suppliers":          "suppliers",
-    "supplier_master":    "suppliers",
-    "vendor_master":      "suppliers",
-    "vendors":            "suppliers",
-    "contracts":          "contracts",
-    "contract_register":  "contracts",
-    "contract_list":      "contracts",
-    "agreements":         "contracts",
-    "risk":               "risk",
-    "risk_register":      "risk",
-    "supplier_risk":      "risk",
-    "savings":            "savings",
-    "savings_pipeline":   "savings",
-    "savings_opportunities": "savings",
-    "forecast":           "forecast",
-    "spend_forecast":     "forecast",
-    "forecasting":        "forecast",
+    # ── Spend / Transactions ───────────────────────────────────────────────────
+    "spend_data":              "spend",
+    "spend":                   "spend",
+    "transactions":            "spend",
+    "transaction_data":        "spend",
+    "invoice_data":            "spend",
+    "invoices":                "spend",
+    "purchase_orders":         "spend",
+    "purchase_order_data":     "spend",
+    "pos":                     "spend",
+    "po_data":                 "spend",
+    "spend_transactions":      "spend",
+    "procurement_data":        "spend",
+    "expenditure":             "spend",
+    "payments":                "spend",
+    "payment_data":            "spend",
+    "ap_data":                 "spend",
+    "accounts_payable":        "spend",
+    "ledger":                  "spend",
+    "data":                    "spend",
+    "sheet1":                  "spend",
+    "sheet 1":                 "spend",
+
+    # ── Suppliers / Vendors ────────────────────────────────────────────────────
+    "suppliers":               "suppliers",
+    "supplier":                "suppliers",
+    "supplier_master":         "suppliers",
+    "supplier_data":           "suppliers",
+    "supplier_list":           "suppliers",
+    "supplier_directory":      "suppliers",
+    "vendor_master":           "suppliers",
+    "vendor_data":             "suppliers",
+    "vendor_list":             "suppliers",
+    "vendors":                 "suppliers",
+    "vendor":                  "suppliers",
+    "counterparties":          "suppliers",
+    "business_partners":       "suppliers",
+    "creditors":               "suppliers",
+
+    # ── Contracts / Agreements ─────────────────────────────────────────────────
+    "contracts":               "contracts",
+    "contract":                "contracts",
+    "contract_master":         "contracts",
+    "contract_data":           "contracts",
+    "contract_register":       "contracts",
+    "contract_list":           "contracts",
+    "contract_management":     "contracts",
+    "agreements":              "contracts",
+    "agreement":               "contracts",
+    "agreement_register":      "contracts",
+    "framework_agreements":    "contracts",
+    "msas":                    "contracts",
+    "sows":                    "contracts",
+    "po_contracts":            "contracts",
+
+    # ── Risk ───────────────────────────────────────────────────────────────────
+    "risk":                    "risk",
+    "risk_register":           "risk",
+    "supplier_risk":           "risk",
+    "risk_assessment":         "risk",
+    "risk_data":               "risk",
+    "risk_scores":             "risk",
+    "vendor_risk":             "risk",
+
+    # ── Savings / Pipeline ─────────────────────────────────────────────────────
+    "savings":                 "savings",
+    "savings_pipeline":        "savings",
+    "savings_opportunities":   "savings",
+    "savings_tracker":         "savings",
+    "cost_savings":            "savings",
+    "opportunities":           "savings",
+    "value_delivery":          "savings",
+
+    # ── Forecast ───────────────────────────────────────────────────────────────
+    "forecast":                "forecast",
+    "spend_forecast":          "forecast",
+    "forecasting":             "forecast",
+    "budget":                  "forecast",
+    "budget_data":             "forecast",
+    "planned_spend":           "forecast",
 }
 
 
 def _classify_sheet(name: str) -> str:
-    """Map a sheet name to its logical type."""
+    """Map any sheet name to its logical procurement type.
+
+    Normalises to lowercase with underscores, tries exact map lookup,
+    then falls back to keyword scanning so completely novel sheet names
+    still resolve to the right type instead of defaulting to spend.
+    """
     key = name.strip().lower().replace(" ", "_").replace("-", "_")
-    return SHEET_TYPE_MAP.get(key, "spend")   # default: treat as spend data
+
+    # Exact map lookup
+    if key in SHEET_TYPE_MAP:
+        return SHEET_TYPE_MAP[key]
+
+    # Keyword scan — pick best match
+    if any(k in key for k in ["contract", "agreement", "msa", "sow"]):
+        return "contracts"
+    if any(k in key for k in ["supplier", "vendor", "creditor", "counterparty"]):
+        return "suppliers"
+    if any(k in key for k in ["risk", "score", "assessment"]):
+        return "risk"
+    if any(k in key for k in ["saving", "opportunity", "pipeline"]):
+        return "savings"
+    if any(k in key for k in ["forecast", "budget", "plan"]):
+        return "forecast"
+    if any(k in key for k in ["spend", "transaction", "invoice", "po", "purchase",
+                               "payment", "ledger", "ap", "expenditure"]):
+        return "spend"
+
+    # Default: treat as spend data (most common sheet type)
+    return "spend"
 
 
 class XlsxParser:

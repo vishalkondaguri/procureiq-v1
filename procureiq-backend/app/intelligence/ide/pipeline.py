@@ -300,11 +300,43 @@ class IDEPipeline:
         finally:
             _FILE_BYTES_STORE.pop(ingestion_id, None)
 
+    # ── Universal column resolver ──────────────────────────────────────────────
+
+    @staticmethod
+    def _gcol(df: pd.DataFrame, *aliases: str):
+        """Case-insensitive column lookup across a list of alias names.
+
+        Also applies the universal column mapper synonyms so any procurement
+        column name variant is found automatically.
+        """
+        col = {c.strip().lower(): c for c in df.columns}
+        for alias in aliases:
+            key = alias.strip().lower()
+            if key in col:
+                return col[key]
+        return None
+
+    @staticmethod
+    def _apply_col_map(df: pd.DataFrame) -> pd.DataFrame:
+        """Apply the AIColumnMapper synchronously to rename columns to canonical names.
+        Used by persist helpers that don't go through the main pipeline stage."""
+        from app.intelligence.ide.column_mapper import AIColumnMapper, CANONICAL_SYNONYMS, _normalise
+        col = {_normalise(c): c for c in df.columns}
+        rename_map: dict[str, str] = {}
+        for canonical, synonyms in CANONICAL_SYNONYMS.items():
+            canonical_norm = _normalise(canonical)
+            for raw_col_norm, raw_col in col.items():
+                if raw_col_norm == canonical_norm or raw_col_norm in [_normalise(s) for s in synonyms]:
+                    if raw_col not in rename_map:
+                        rename_map[raw_col] = canonical
+        return df.rename(columns=rename_map)
+
     # ── Stage helpers ──────────────────────────────────────────────────────────
 
     async def _persist_to_db(self, ingestion_id: str, df: pd.DataFrame) -> int:
         """
-        Write cleaned data to PostgreSQL.
+        Write cleaned spend data to PostgreSQL.
+        - Column mapper has already run on this df (canonical names in place)
         - Upserts Supplier rows (by canonical_name per tenant)
         - Inserts SpendTransaction rows tagged with ingestion_id
         - Updates supplier total_spend_usd aggregate
@@ -315,28 +347,46 @@ class IDEPipeline:
 
         TENANT_ID = self._tenant_id()
 
-        # ── Resolve column names (case-insensitive) ───────────────────────────
-        col = {c.lower(): c for c in df.columns}
+        # Apply column map again in case any non-spend columns slipped through
+        df = self._apply_col_map(df)
 
-        def gcol(candidates):
-            for c in candidates:
-                if c in col: return col[c]
-            return None
+        # ── Universal case-insensitive column resolver ─────────────────────────
+        def gcol(*aliases):
+            return self._gcol(df, *aliases)
 
-        sup_col    = gcol(["supplier_name", "supplier", "vendor", "vendor_name"])
-        amt_col    = gcol(["amount_usd", "amount", "spend", "cost", "value", "total"])
-        date_col   = gcol(["invoice_date", "inv_date", "billing_date", "date"])
-        po_col     = gcol(["po_number", "po_no", "po", "purchase_order"])
-        po_date_col= gcol(["po_date", "purchase_date", "order_date"])
-        inv_col    = gcol(["invoice_number", "invoice_no", "inv_no"])
-        cc_col     = gcol(["cost_center", "cost centre", "department", "dept"])
-        gl_col     = gcol(["gl_account", "gl", "account"])
-        cat_col    = gcol(["commodity_code", "category", "commodity"])
-        cty_col    = gcol(["country"])
-        terms_col  = gcol(["payment_terms", "pay_terms", "terms"])
+        sup_col    = gcol("supplier_name", "supplier", "vendor", "vendor name",
+                          "vendor_name", "company", "payee", "creditor")
+        amt_col    = gcol("amount_usd", "amount", "spend", "cost", "value", "total",
+                          "spend amount", "invoice amount", "total spend", "annual value",
+                          "expenditure", "procurement spend")
+        date_col   = gcol("invoice_date", "date", "inv_date", "billing_date",
+                          "transaction date", "posting date", "spend date",
+                          "document date", "entry date")
+        po_col     = gcol("po_number", "po", "po number", "po_no", "purchase order",
+                          "order number", "order no")
+        po_date_col= gcol("po_date", "po date", "purchase_date", "order_date")
+        inv_col    = gcol("invoice_number", "invoice_no", "invoice", "inv_no",
+                          "bill number", "document no")
+        cc_col     = gcol("cost_center", "cost centre", "department", "dept",
+                          "business unit", "division", "function", "team")
+        gl_col     = gcol("gl_account", "gl", "account", "gl code")
+        cat_col    = gcol("commodity_code", "category", "commodity",
+                          "spend category", "product category", "service category")
+        cty_col    = gcol("country", "supplier country", "geo")
+        terms_col  = gcol("payment_terms", "terms", "pay terms", "payment",
+                          "net days", "payment condition")
+        contracted_col = gcol("is_contracted", "contracted", "under contract",
+                              "on contract", "contract flag")
+        tail_col   = gcol("is_tail_spend", "tail spend", "tail", "maverick")
+        currency_col = gcol("currency", "ccy", "currency code")
 
-        if not sup_col or not amt_col:
-            logger.warning("No supplier_name or amount column found — skipping DB persist")
+        if not sup_col:
+            logger.warning("No supplier column found in spend sheet — columns: %s",
+                           list(df.columns)[:15])
+            return 0
+        if not amt_col:
+            logger.warning("No amount column found in spend sheet — columns: %s",
+                           list(df.columns)[:15])
             return 0
 
         # ── Upsert suppliers ──────────────────────────────────────────────────
@@ -381,6 +431,19 @@ class IDEPipeline:
                 logger.debug("Created supplier '%s' id=%s", name, new_sup.id)
 
         # ── Insert spend transactions ─────────────────────────────────────────
+        def _parse_date(v):
+            if v is None:
+                return None
+            try:
+                if hasattr(v, 'year'):  # already a date/datetime
+                    return v.date() if hasattr(v, 'hour') else v
+                if isinstance(v, float) and pd.isna(v):
+                    return None
+                parsed = pd.to_datetime(str(v), errors="coerce")
+                return parsed.date() if not pd.isnull(parsed) else None
+            except Exception:
+                return None
+
         rows_inserted = 0
         for _, row in df.iterrows():
             sup_name = str(row.get(sup_col, "") or "").strip()
@@ -388,20 +451,10 @@ class IDEPipeline:
                 continue
             try:
                 raw_amount = row.get(amt_col)
-                amount = float(pd.to_numeric(raw_amount, errors="coerce") or 0)
+                amount = float(pd.to_numeric(str(raw_amount).replace(",", ""),
+                                             errors="coerce") or 0)
                 if amount <= 0:
                     continue
-
-                def _parse_date(v):
-                    if v is None or (isinstance(v, float) and pd.isna(v)):
-                        return None
-                    try:
-                        if isinstance(v, date):
-                            return v
-                        parsed = pd.to_datetime(str(v), errors="coerce")
-                        return parsed.date() if not pd.isnull(parsed) else None
-                    except Exception:
-                        return None
 
                 tx = SpendTransaction(
                     id=str(uuid.uuid4()),
@@ -450,26 +503,44 @@ class IDEPipeline:
     # ── New per-type persist helpers ──────────────────────────────────────────
 
     async def _persist_suppliers_sheet(self, df: pd.DataFrame) -> int:
-        """Upsert Supplier rows from a dedicated Suppliers sheet."""
+        """Upsert Supplier rows from a dedicated Suppliers sheet.
+        Applies universal column mapper first so any naming convention is handled."""
         if df.empty:
             return 0
         TENANT_ID = self._tenant_id()
-        col = {c.lower(): c for c in df.columns}
 
-        def gcol(*names):
-            for n in names:
-                if n in col: return col[n]
-            return None
+        # Apply universal column mapper
+        df = self._apply_col_map(df)
 
-        name_col    = gcol("supplier_name", "canonical_name", "vendor_name", "name", "supplier", "vendor")
-        cat_col     = gcol("category", "commodity", "commodity_code")
-        country_col = gcol("country", "country_code")
-        tier_col    = gcol("tier", "supplier_tier")
-        risk_col    = gcol("risk_score", "risk", "composite_score")
+        def gcol(*aliases):
+            return self._gcol(df, *aliases)
+
+        name_col    = gcol("supplier_name", "supplier name", "canonical_name",
+                           "vendor_name", "vendor name", "name", "supplier", "vendor",
+                           "company name", "company", "payee")
+        cat_col     = gcol("commodity_code", "supplier_category", "category",
+                           "commodity", "spend category", "service category")
+        country_col = gcol("supplier_country", "country", "country_code",
+                           "geo", "origin country")
+        tier_col    = gcol("supplier_tier", "tier", "vendor tier",
+                           "preferred", "sourcing tier")
+        risk_col    = gcol("risk_score", "risk", "composite_score",
+                           "overall score", "risk level", "risk rating")
+        id_col      = gcol("supplier_id", "vendor_id", "vendor code",
+                           "supplier code", "vendor no")
 
         if not name_col:
-            logger.warning("Suppliers sheet missing name column — skipping")
+            logger.warning("Suppliers sheet missing name column — columns: %s",
+                           list(df.columns)[:10])
             return 0
+
+        # Map text tier values to integers (e.g. "Preferred" → 1, "Approved" → 2)
+        TIER_MAP = {"preferred": 1, "strategic": 1, "tier 1": 1, "tier1": 1,
+                    "approved": 2, "tier 2": 2, "tier2": 2,
+                    "conditional": 3, "tier 3": 3, "tier3": 3, "other": 3}
+        # Map text risk values to numeric scores (0-10)
+        RISK_MAP = {"low": 2.5, "medium": 5.5, "high": 7.5, "critical": 9.0,
+                    "very high": 8.5, "very low": 1.5, "moderate": 5.0}
 
         count = 0
         for _, row in df.iterrows():
@@ -486,16 +557,20 @@ class IDEPipeline:
             existing = res.scalar_one_or_none()
             tier_val = None
             if tier_col and pd.notna(row.get(tier_col)):
+                raw_tier = str(row[tier_col]).strip()
                 try:
-                    tier_val = int(float(str(row[tier_col])))
+                    tier_val = int(float(raw_tier))
                 except Exception:
-                    pass
+                    tier_val = TIER_MAP.get(raw_tier.lower())
             risk_val = None
             if risk_col and pd.notna(row.get(risk_col)):
+                raw_risk = str(row[risk_col]).strip()
                 try:
-                    risk_val = Decimal(str(round(float(str(row[risk_col])), 1)))
+                    risk_val = Decimal(str(round(float(raw_risk), 1)))
                 except Exception:
-                    pass
+                    mapped = RISK_MAP.get(raw_risk.lower())
+                    if mapped:
+                        risk_val = Decimal(str(mapped))
 
             if existing:
                 if cat_col and pd.notna(row.get(cat_col)):
@@ -528,26 +603,42 @@ class IDEPipeline:
         return count
 
     async def _persist_contracts(self, ingestion_id: str, df: pd.DataFrame) -> int:
-        """Insert Contract rows from a Contracts sheet."""
+        """Insert Contract rows from a Contracts sheet.
+        Applies universal column mapper so any naming convention is handled."""
         if df.empty:
             return 0
         TENANT_ID = self._tenant_id()
-        col = {c.lower(): c for c in df.columns}
 
-        def gcol(*names):
-            for n in names:
-                if n in col: return col[n]
-            return None
+        # Apply universal column mapper
+        df = self._apply_col_map(df)
 
-        sup_col    = gcol("supplier_name", "supplier", "vendor", "vendor_name")
-        title_col  = gcol("title", "contract_title", "contract_name", "description", "name")
-        start_col  = gcol("start_date", "commencement_date", "effective_date")
-        end_col    = gcol("end_date", "expiry_date", "expiration_date", "termination_date")
-        val_col    = gcol("value_usd", "value", "amount", "contract_value", "total_value")
-        status_col = gcol("status", "contract_status")
+        def gcol(*aliases):
+            return self._gcol(df, *aliases)
+
+        sup_col    = gcol("supplier_name", "supplier name", "supplier", "vendor",
+                          "vendor name", "vendor_name", "company", "counterparty")
+        title_col  = gcol("contract_title", "title", "contract name", "agreement type",
+                          "contract type", "description", "name", "scope",
+                          "service description", "agreement")
+        start_col  = gcol("contract_start", "start date", "contract start",
+                          "start_date", "effective date", "commencement date",
+                          "from date", "valid from", "inception date")
+        end_col    = gcol("contract_end", "end date", "contract end",
+                          "end_date", "expiry date", "expiration date",
+                          "to date", "valid to", "termination date", "expires")
+        val_col    = gcol("contract_value_usd", "annual value", "value",
+                          "contract value", "amount", "total value",
+                          "contract amount", "acv", "tcv", "committed value")
+        status_col = gcol("contract_status", "status", "agreement status", "state")
+        id_col     = gcol("contract_id", "contract id", "contract no",
+                          "agreement id", "agreement no", "contract number")
+        type_col   = gcol("contract_title", "agreement type", "contract type",
+                          "contract_type", "service type")
+        terms_col  = gcol("payment_terms", "payment terms", "terms", "pay terms")
 
         if not sup_col:
-            logger.warning("Contracts sheet missing supplier column — skipping")
+            logger.warning("Contracts sheet missing supplier column — columns: %s",
+                           list(df.columns)[:10])
             return 0
 
         def _parse_date(v):
