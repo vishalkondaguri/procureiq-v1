@@ -377,12 +377,20 @@ export default function IDEPage() {
         if (['completed', 'failed', 'partial', 'not_found'].includes(data.status) || attempts > 60) {
           clearInterval(interval);
           setPolling(false);
-          // Invalidate dashboard data so KPIs, trend, suppliers, categories all reload
           if (data.status === 'completed' || data.status === 'partial') {
+            // Invalidate ALL module queries so every page picks up the new dataset
+            void queryClient.invalidateQueries({ queryKey: ['ide-dataset-status'] });
             void queryClient.invalidateQueries({ queryKey: ['spend-kpis'] });
             void queryClient.invalidateQueries({ queryKey: ['spend-monthly-trend'] });
             void queryClient.invalidateQueries({ queryKey: ['top-suppliers'] });
             void queryClient.invalidateQueries({ queryKey: ['spend-categories'] });
+            void queryClient.invalidateQueries({ queryKey: ['tail-spend'] });
+            void queryClient.invalidateQueries({ queryKey: ['pareto'] });
+            void queryClient.invalidateQueries({ queryKey: ['contracts'] });
+            void queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+            void queryClient.invalidateQueries({ queryKey: ['risk'] });
+            void queryClient.invalidateQueries({ queryKey: ['savings'] });
+            void queryClient.invalidateQueries({ queryKey: ['forecast'] });
             void queryClient.invalidateQueries({ queryKey: ['notifications'] });
           }
         }
@@ -391,7 +399,7 @@ export default function IDEPage() {
         setPolling(false);
       }
     }, 2000);
-  }, []);
+  }, [queryClient]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (!acceptedFiles.length) return;

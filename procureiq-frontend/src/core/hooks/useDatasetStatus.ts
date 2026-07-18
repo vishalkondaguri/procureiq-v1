@@ -27,8 +27,8 @@ export function useDatasetStatus() {
       const { data } = await apiClient.get<DatasetStatus>('/ide/dataset-status');
       return data;
     },
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 5_000,        // short stale time — re-check quickly after upload
+    refetchInterval: 30_000, // background refresh every 30s
     refetchOnWindowFocus: true,
   });
 }
