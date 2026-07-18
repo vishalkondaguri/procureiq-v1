@@ -18,7 +18,7 @@ const Supplier360Page        = lazy(() => import('@/modules/supplier-360/pages/S
 
 // ── Phase 2 ──────────────────────────────────────────────────────────────────
 const ContractIntelligence   = lazy(() => import('@/modules/contract-intelligence/pages/ContractIntelligencePage'));
-const SupplierRisk           = lazy(() => import('@/modules/supplier-risk/pages/SupplierRiskPage'));
+const SupplierRisk           = lazy(() => import('@/modules/supplier-risk/pages/SupplierIntelligencePage'));
 const ParetoAnalysis         = lazy(() => import('@/modules/pareto-analysis/pages/ParetoAnalysisPage'));
 const HealthScore            = lazy(() => import('@/modules/health-score/pages/HealthScorePage'));
 const SavingsEngine          = lazy(() => import('@/modules/savings-engine/pages/SavingsEnginePage'));

@@ -45,7 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Tail Spend Intelligence',   path: '/app/tail-spend',   icon: <AccountBalanceWalletIcon /> },
   { label: 'Supplier 360',              path: '/app/suppliers',    icon: <PeopleIcon /> },
   { label: 'Contract Intelligence',     path: '/app/contracts',    icon: <DescriptionIcon />,    phase: 2 },
-  { label: 'Supplier Risk',             path: '/app/supplier-risk',icon: <WarningIcon />,        phase: 2 },
+  { label: 'Supplier Intelligence',     path: '/app/supplier-risk',icon: <WarningIcon />,        phase: 2 },
   { label: '80/20 Pareto Analysis',     path: '/app/pareto',       icon: <BarChartIcon />,       phase: 2 },
   { label: 'Savings Engine',            path: '/app/savings',      icon: <SavingsIcon />,        phase: 2 },
   { label: 'Health Score',              path: '/app/health-score', icon: <FavoriteIcon />,       phase: 2 },
