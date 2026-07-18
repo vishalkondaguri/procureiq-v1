@@ -23,6 +23,9 @@ const ParetoAnalysis         = lazy(() => import('@/modules/pareto-analysis/page
 const HealthScore            = lazy(() => import('@/modules/health-score/pages/HealthScorePage'));
 const SavingsEngine          = lazy(() => import('@/modules/savings-engine/pages/SavingsEnginePage'));
 
+// ── Payment Analytics ─────────────────────────────────────────────────────────
+const PaymentAnalytics       = lazy(() => import('@/modules/payment-analytics/pages/PaymentAnalyticsPage'));
+
 // ── Phase 3 stubs ─────────────────────────────────────────────────────────────
 const WhatIfAnalysis         = lazy(() => import('@/modules/what-if-analysis/pages/WhatIfAnalysisPage'));
 const SpendForecasting       = lazy(() => import('@/modules/spend-forecasting/pages/SpendForecastingPage'));
@@ -62,6 +65,7 @@ export const router = createBrowserRouter([
       { path: 'pareto',         element: S(<ParetoAnalysis />) },
       { path: 'health-score',   element: S(<HealthScore />) },
       { path: 'savings',        element: S(<SavingsEngine />) },
+      { path: 'payments',       element: S(<PaymentAnalytics />) },
       // Phase 3 (stubs)
       { path: 'what-if',        element: S(<WhatIfAnalysis />) },
       { path: 'forecasting',    element: S(<SpendForecasting />) },

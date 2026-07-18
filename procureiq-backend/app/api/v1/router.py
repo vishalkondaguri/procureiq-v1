@@ -18,6 +18,7 @@ from app.api.v1 import (
     system,
     notifications,
     intelligence,
+    payments,
 )
 
 api_router = APIRouter()
@@ -38,3 +39,4 @@ api_router.include_router(settings.router,    prefix="/settings",   tags=["Setti
 api_router.include_router(system.router,        prefix="/system",        tags=["System & Observability"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(intelligence.router,  prefix="/intelligence",  tags=["Supplier Intelligence"])
+api_router.include_router(payments.router,      prefix="/payments",      tags=["Payment Analytics"])

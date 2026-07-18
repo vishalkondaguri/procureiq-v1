@@ -1,7 +1,6 @@
 import { RouterProvider } from 'react-router-dom';
-import { ThemeProvider, CssBaseline } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { procureIQTheme } from './theme';
+import { AppThemeProvider } from '@/core/theme/ThemeContext';
 import { router } from './router';
 import { AuthProvider } from '@/core/auth/AuthContext';
 
@@ -18,12 +17,11 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={procureIQTheme}>
-        <CssBaseline />
+      <AppThemeProvider>
         <AuthProvider>
           <RouterProvider router={router} />
         </AuthProvider>
-      </ThemeProvider>
+      </AppThemeProvider>
     </QueryClientProvider>
   );
 }
