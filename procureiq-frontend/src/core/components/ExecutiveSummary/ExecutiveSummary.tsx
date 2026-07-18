@@ -1,0 +1,39 @@
+import { Box, Typography, Chip } from '@mui/material';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+
+interface ExecutiveSummaryProps {
+  title: string;
+  summary: string;
+  highlights?: string[];
+  isLoading?: boolean;
+}
+
+export default function ExecutiveSummary({ title, summary, highlights, isLoading }: ExecutiveSummaryProps) {
+  return (
+    <Box sx={{ bgcolor: '#eff4ff', border: '1px solid #d0e2ff', borderRadius: 1.5, p: 2.5, mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+        <AutoAwesomeIcon sx={{ color: '#0f62fe', fontSize: 18 }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0043ce' }}>
+          Ignite AI — {title}
+        </Typography>
+        <Chip label="AI Generated" size="small"
+          sx={{ ml: 'auto', bgcolor: '#d0e2ff', color: '#002d9c', fontSize: 10, fontWeight: 700, height: 20 }} />
+      </Box>
+      {isLoading ? (
+        <Box sx={{ height: 40, bgcolor: '#d0e2ff', borderRadius: 1, opacity: 0.5 }} />
+      ) : (
+        <>
+          <Typography variant="body2" sx={{ color: '#161616', lineHeight: 1.7 }}>{summary}</Typography>
+          {highlights && highlights.length > 0 && (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1.5 }}>
+              {highlights.map((h, i) => (
+                <Chip key={i} label={h} size="small"
+                  sx={{ bgcolor: '#fff', border: '1px solid #d0e2ff', color: '#0043ce', fontSize: 11, height: 24 }} />
+              ))}
+            </Box>
+          )}
+        </>
+      )}
+    </Box>
+  );
+}

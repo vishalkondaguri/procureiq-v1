@@ -1,0 +1,7 @@
+# ════════════════════════════════════════════════════════════════════
+#  ProcureIQ v1.0 — Railway Environment Variables (Frontend Service)
+#  Copy these into Railway → Service → Variables tab
+# ════════════════════════════════════════════════════════════════════
+
+# ── Backend API URL (set AFTER deploying backend, replace with real URL) ──
+VITE_API_BASE_URL=https://procureiq-backend.up.railway.app

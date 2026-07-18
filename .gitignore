@@ -1,0 +1,52 @@
+﻿# ── Python / Backend ─────────────────────────────────
+procureiq-backend/.venv/
+procureiq-backend/__pycache__/
+procureiq-backend/**/__pycache__/
+procureiq-backend/**/*.pyc
+procureiq-backend/**/*.pyo
+procureiq-backend/.pytest_cache/
+procureiq-backend/.mypy_cache/
+procureiq-backend/dist/
+procureiq-backend/build/
+procureiq-backend/*.egg-info/
+
+# ── Secrets (NEVER commit) ───────────────────────────
+.env
+procureiq-backend/.env
+procureiq-frontend/.env
+procureiq-frontend/.env.local
+procureiq-frontend/.env.production
+
+# ── Frontend / Node ──────────────────────────────────
+procureiq-frontend/node_modules/
+procureiq-frontend/dist/
+procureiq-frontend/.vite/
+procureiq-frontend/coverage/
+
+# ── Logs ────────────────────────────────────────────
+*.log
+backend-stdout.txt
+backend-stderr.txt
+frontend.log
+uvicorn.log
+uvicorn_err.log
+
+# ── OS ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ─────────────────────────────────────────────
+.vscode/
+.idea/
+
+# ── Docker volumes ───────────────────────────────────
+postgres-data/
+redis-data/
+minio-data/
+
+# ── Temp ────────────────────────────────────────────
+*.tmp
+procureiq-login-fixed.html
+enable-wsl2-admin.bat
+uploads/

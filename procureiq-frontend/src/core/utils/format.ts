@@ -1,0 +1,29 @@
+// Formatting utilities
+export function formatCurrency(
+  value: number,
+  currency = 'USD',
+  compact = true,
+): string {
+  if (compact) {
+    if (Math.abs(value) >= 1_000_000_000)
+      return `$${(value / 1_000_000_000).toFixed(1)}B`;
+    if (Math.abs(value) >= 1_000_000)
+      return `$${(value / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(value) >= 1_000)
+      return `$${(value / 1_000).toFixed(0)}K`;
+  }
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+}
+
+export function formatPercent(value: number, decimals = 1): string {
+  return `${value.toFixed(decimals)}%`;
+}
+
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat('en-US').format(value);
+}
+
+export function formatDate(value: string | null): string {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}

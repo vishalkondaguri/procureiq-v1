@@ -1,0 +1,37 @@
+# ════════════════════════════════════════════════════════════════════
+#  ProcureIQ v1.0 — Railway Environment Variables (Backend Service)
+#  Copy these into Railway → Service → Variables tab
+# ════════════════════════════════════════════════════════════════════
+
+# ── App ──────────────────────────────────────────────────────────────
+ENVIRONMENT=production
+APP_NAME=ProcureIQ
+# Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+SECRET_KEY=REPLACE_WITH_RANDOM_64_CHAR_HEX
+
+# ── Database (Railway provides this automatically if you add PostgreSQL) ──
+# Railway auto-sets DATABASE_URL when you link a Postgres plugin
+DATABASE_URL=postgresql+asyncpg://USER:PASS@HOST:PORT/DB
+
+# ── Redis (Railway provides this if you add Redis plugin) ────────────
+REDIS_URL=redis://default:PASSWORD@HOST:PORT
+
+# ── Frontend URL (set AFTER deploying frontend, replace with real URL) ──
+FRONTEND_URL=https://procureiq-frontend.up.railway.app
+
+# ── IBM watsonx (optional — Ignite uses smart-offline mode without it) ──
+WATSONX_API_KEY=
+WATSONX_PROJECT_ID=
+WATSONX_URL=https://us-south.ml.cloud.ibm.com
+WATSONX_MODEL_ID=ibm/granite-13b-chat-v2
+
+# ── Storage ──────────────────────────────────────────────────────────
+STORAGE_PROVIDER=local
+STORAGE_LOCAL_PATH=/tmp/procureiq-uploads
+
+# ── Tokens ───────────────────────────────────────────────────────────
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# ── Docs (hide in production) ─────────────────────────────────────────
+SHOW_API_DOCS=false
