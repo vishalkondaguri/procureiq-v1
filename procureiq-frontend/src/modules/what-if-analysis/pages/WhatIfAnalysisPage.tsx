@@ -14,6 +14,7 @@ import {
 import ExecutiveSummary from '@/core/components/ExecutiveSummary/ExecutiveSummary';
 import { useWhatIfPresets, simulateScenario } from '../hooks/useWhatIfData';
 import { formatCurrency } from '@/core/utils/format';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 interface Levers {
   name: string;
@@ -89,6 +90,7 @@ export default function WhatIfAnalysisPage() {
   })) ?? [];
 
   return (
+    <DatasetGate moduleName="What-if Analysis">
     <Box>
       <ExecutiveSummary
         title="What-if Analysis"
@@ -266,5 +268,6 @@ export default function WhatIfAnalysisPage() {
         </Grid>
       </Grid>
     </Box>
+  </DatasetGate>
   );
 }

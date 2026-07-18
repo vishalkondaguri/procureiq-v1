@@ -11,6 +11,7 @@ import ExecutiveSummary from '@/core/components/ExecutiveSummary/ExecutiveSummar
 import DataTable, { Column } from '@/core/components/DataTable/DataTable';
 import { useForecast } from '../hooks/useForecastData';
 import { formatCurrency } from '@/core/utils/format';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 const FORECAST_COLS: Column<Record<string, unknown>>[] = [
   { id: 'month',            label: 'Month',            minWidth: 100 },
@@ -52,6 +53,7 @@ export default function SpendForecastingPage() {
     : 'Loading spend forecast…';
 
   return (
+    <DatasetGate moduleName="Spend Forecasting">
     <Box>
       <ExecutiveSummary
         title="Spend Forecasting"
@@ -165,5 +167,6 @@ export default function SpendForecastingPage() {
         </Box>
       )}
     </Box>
+  </DatasetGate>
   );
 }

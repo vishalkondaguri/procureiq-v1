@@ -20,6 +20,7 @@ import ExecutiveSummary from '@/core/components/ExecutiveSummary/ExecutiveSummar
 import KPICard from '@/core/components/KPICard/KPICard';
 import { useTailSpend } from '@/modules/executive-command-center/hooks/useSpendData';
 import { formatCurrency, formatPercent } from '@/core/utils/format';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 // ── Palette ────────────────────────────────────────────────────────────────────
 const IBM = {
@@ -133,6 +134,7 @@ export default function TailSpendPage() {
     : 'Loading tail spend analysis…';
 
   return (
+    <DatasetGate moduleName="Tail Spend Intelligence">
     <Box>
       <ExecutiveSummary
         title="Tail Spend Intelligence"
@@ -330,5 +332,6 @@ export default function TailSpendPage() {
         />
       </Box>
     </Box>
+  </DatasetGate>
   );
 }

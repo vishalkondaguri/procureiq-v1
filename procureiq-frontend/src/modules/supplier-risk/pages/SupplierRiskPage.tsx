@@ -16,6 +16,7 @@ import KPICard from '@/core/components/KPICard/KPICard';
 import StatusBadge from '@/core/components/StatusBadge/StatusBadge';
 import { useRiskScores, useRiskKPIs, useRiskHistory } from '../hooks/useRiskData';
 import { formatCurrency } from '@/core/utils/format';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 const RISK_COLOR: Record<string, string> = {
   low: '#198038', medium: '#f1c21b', high: '#ff832b', critical: '#da1e28',
@@ -95,6 +96,7 @@ export default function SupplierRiskPage() {
     : 'Loading risk assessment…';
 
   return (
+    <DatasetGate moduleName="Supplier Risk Assessment">
     <Box>
       <ExecutiveSummary
         title="Supplier Risk Assessment"
@@ -254,5 +256,6 @@ export default function SupplierRiskPage() {
         })()}
       </Drawer>
     </Box>
+  </DatasetGate>
   );
 }

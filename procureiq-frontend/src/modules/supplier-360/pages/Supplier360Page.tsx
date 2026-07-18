@@ -36,6 +36,7 @@ import StatusBadge         from '@/core/components/StatusBadge/StatusBadge';
 import DataSourceBadge     from '@/core/components/DataSourceBadge';
 import { useSuppliers, useSupplier360, useSupplierCategories } from '../hooks/useSupplierData';
 import { formatCurrency, formatDate } from '@/core/utils/format';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const IBM = {
@@ -72,7 +73,7 @@ const SUPPLIER_COLS: Column<Record<string, unknown>>[] = [
       const s = Number(v);
       const col = s >= 80 ? IBM.green : s >= 60 ? IBM.yellow : IBM.red;
       return (
-        <Box sx={{ display:'flex', alignItems:'center', gap:0.5, justifyContent:'center' }}>
+    <Box sx={{ display:'flex', alignItems:'center', gap:0.5, justifyContent:'center' }}>
           <Box sx={{ width:36, height:6, bgcolor:'#e0e0e0', borderRadius:3, overflow:'hidden' }}>
             <Box sx={{ width:`${s}%`, height:'100%', bgcolor:col, borderRadius:3 }} />
           </Box>
@@ -766,6 +767,7 @@ export default function Supplier360Page() {
     : 'No suppliers found. Upload procurement data via the Intelligent Data Engine to populate the supplier registry.';
 
   return (
+    <DatasetGate moduleName="Supplier 360">
     <Box>
       <ExecutiveSummary
         title="Supplier Intelligence 360"
@@ -877,5 +879,6 @@ export default function Supplier360Page() {
         ) : null}
       </Drawer>
     </Box>
+  </DatasetGate>
   );
 }

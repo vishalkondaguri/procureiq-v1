@@ -14,14 +14,14 @@ import asyncio
 import logging
 import random
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 from fastapi import UploadFile
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.intelligence.ide.parsers.xlsx_parser import XlsxParser
@@ -32,6 +32,9 @@ from app.intelligence.ide.health_scorer import DataHealthScorer
 from app.models.ingestion import IngestionRun
 from app.models.supplier import Supplier
 from app.models.spend import SpendTransaction
+from app.models.contract import Contract
+from app.models.risk import SupplierRiskScore
+from app.models.savings import SavingsOpportunity
 from app.core.cache import invalidate_prefix
 
 logger = logging.getLogger(__name__)
@@ -115,7 +118,6 @@ class IDEPipeline:
 
     async def process(self, ingestion_id: str) -> None:
         """Execute all 8 pipeline stages and persist results to DB."""
-        # Retrieve the run record to get filename
         result = await self.db.execute(
             select(IngestionRun).where(IngestionRun.id == ingestion_id)
         )
@@ -125,28 +127,46 @@ class IDEPipeline:
             return
 
         filename = run_row.filename or "upload"
+        ext = Path(filename).suffix.lower()
 
-        # Mark as processing
         await self._db_update_run(ingestion_id, status="processing")
 
         correction_report: list[dict] = []
         quarantined_rows:  list[dict] = []
 
         try:
-            # ── Stage 1: Parse ────────────────────────────────────────────────
-            raw_data, file_ext = await self._stage_parse(ingestion_id, filename)
-            rows_original = len(raw_data)
-            logger.info("[1] Parsed %d rows, %d cols from '%s'",
-                        rows_original, len(raw_data.columns), filename)
+            # ── Stage 1: Parse ─────────────────────────────────────────────────
+            # For Excel: parse ALL sheets into typed DataFrames
+            # For CSV/other: parse as single spend sheet (backwards compatible)
+            fb = _FILE_BYTES_STORE.get(ingestion_id, b"")
+            typed_sheets: dict[str, pd.DataFrame] = {}
 
-            # ── Stage 2: Schema Inference ─────────────────────────────────────
+            if ext in (".xlsx", ".xls"):
+                typed_sheets = await _run_in_executor(XlsxParser.parse_all_sheets, fb)
+                logger.info("[1] Parsed %d sheet type(s) from '%s': %s",
+                            len(typed_sheets), filename, list(typed_sheets.keys()))
+            else:
+                parser_cls = PARSER_MAP.get(ext)
+                if not parser_cls:
+                    raise ValueError(f"Unsupported file type '{ext}'. Supported: .xlsx, .xls, .csv")
+                df_raw = await _run_in_executor(parser_cls().parse, fb)
+                typed_sheets["spend"] = df_raw
+                logger.info("[1] Parsed %d rows from '%s' (CSV/other)", len(df_raw), filename)
+
+            # Primary sheet for schema/quality/analysis pipeline = spend (or first available)
+            primary_type = "spend" if "spend" in typed_sheets else next(iter(typed_sheets), None)
+            raw_data: pd.DataFrame = typed_sheets.get(primary_type, pd.DataFrame()) if primary_type else pd.DataFrame()
+            rows_original = len(raw_data)
+
+            # ── Stage 2: Schema Inference ──────────────────────────────────────
             schema = self._infer_schema(raw_data)
             logger.info("[2] Schema: %d columns", len(schema))
 
-            # ── Stage 3: AI Column Mapping ────────────────────────────────────
-            column_map = await self.column_mapper.map(schema, file_ext)
+            # ── Stage 3: AI Column Mapping (spend sheet only) ──────────────────
+            column_map = await self.column_mapper.map(schema, ext)
             if column_map:
                 raw_data = raw_data.rename(columns=column_map)
+                typed_sheets[primary_type] = raw_data
                 correction_report.append({
                     "stage":        "column_mapping",
                     "description":  f"AI mapped {len(column_map)} column(s) to canonical schema: "
@@ -155,62 +175,106 @@ class IDEPipeline:
                     "action":       "renamed",
                 })
 
-            # ── Stage 4: Data Quality Checks (thread) ─────────────────────────
+            # ── Stage 4: Data Quality Checks ──────────────────────────────────
             raw_data, qc_entries, qc_quarantined = await _run_in_executor(
                 self._quality_checks, raw_data
             )
             correction_report.extend(qc_entries)
             quarantined_rows.extend(qc_quarantined)
+            typed_sheets[primary_type] = raw_data
 
-            # ── Stage 5: Supplier Normalisation ──────────────────────────────
+            # ── Stage 5: Supplier Normalisation ───────────────────────────────
             raw_data, norm_entries = await self.normalizer.normalize(raw_data)
             correction_report.extend(norm_entries)
+            typed_sheets[primary_type] = raw_data
 
-            # ── Stage 6: Date & Currency Normalization (thread) ───────────────
+            # ── Stage 6: Date & Currency Normalization ─────────────────────────
             raw_data, date_entries = await _run_in_executor(
                 self._normalize_dates_and_currency, raw_data
             )
             correction_report.extend(date_entries)
+            typed_sheets[primary_type] = raw_data
 
-            # ── Stage 7: Health Score ─────────────────────────────────────────
+            # ── Stage 7: Health Score ──────────────────────────────────────────
             health_score = self.health_scorer.score(raw_data)
             logger.info("[7] Health score: %.1f", health_score)
 
-            # ── Stage 8a: Build rich analysis FIRST (pure Python, uses df) ───
+            # ── Stage 8a: Build rich analysis (uses primary/spend df) ─────────
             import traceback as _tb, sys as _sys
             analysis = None
             try:
-                df_copy = raw_data.copy()
                 analysis = self._build_analysis(
-                    df_copy, filename, health_score,
+                    raw_data.copy(), filename, health_score,
                     list(correction_report), list(qc_quarantined)
                 )
-                print(f"[IDE] _build_analysis OK — {len(analysis.get('column_profiles', []))} columns",
-                      flush=True)
+                # Record which sheet types were loaded
+                analysis["sheets_loaded"] = list(typed_sheets.keys())
+                logger.info("[8a] Analysis OK — %d columns, sheets: %s",
+                            len(analysis.get("column_profiles", [])), analysis["sheets_loaded"])
             except Exception as ae:
-                ae_msg = _tb.format_exc()
-                print(f"[IDE] _build_analysis FAILED: {ae_msg}", file=_sys.stderr, flush=True)
+                logger.error("[8a] _build_analysis FAILED: %s", _tb.format_exc())
                 analysis = None
 
-            # ── Stage 8b: Persist to PostgreSQL ──────────────────────────────
-            rows_inserted = await self._persist_to_db(ingestion_id, raw_data)
+            # ── Stage 8b: Persist ALL sheet types to PostgreSQL ───────────────
+            rows_inserted = 0
+
+            # Always persist spend/primary sheet
+            if primary_type and not raw_data.empty:
+                rows_inserted += await self._persist_to_db(ingestion_id, raw_data)
+
+            # Persist supplier sheet (if separate)
+            if "suppliers" in typed_sheets and primary_type != "suppliers":
+                await self._persist_suppliers_sheet(typed_sheets["suppliers"])
+
+            # Persist contracts sheet
+            if "contracts" in typed_sheets:
+                n = await self._persist_contracts(ingestion_id, typed_sheets["contracts"])
+                if n:
+                    correction_report.append({
+                        "stage": "database_persist",
+                        "description": f"Saved {n} contract record(s) to database",
+                        "affected_rows": n, "action": "inserted",
+                    })
+
+            # Persist risk sheet
+            if "risk" in typed_sheets:
+                n = await self._persist_risk(ingestion_id, typed_sheets["risk"])
+                if n:
+                    correction_report.append({
+                        "stage": "database_persist",
+                        "description": f"Saved {n} risk score record(s) to database",
+                        "affected_rows": n, "action": "inserted",
+                    })
+
+            # Persist savings sheet
+            if "savings" in typed_sheets:
+                n = await self._persist_savings(ingestion_id, typed_sheets["savings"])
+                if n:
+                    correction_report.append({
+                        "stage": "database_persist",
+                        "description": f"Saved {n} savings opportunity record(s) to database",
+                        "affected_rows": n, "action": "inserted",
+                    })
+
             if rows_inserted > 0:
                 correction_report.append({
                     "stage":        "database_persist",
-                    "description":  f"Saved {rows_inserted} transaction(s) and upserted suppliers to database — all modules updated",
+                    "description":  f"Saved {rows_inserted} spend transaction(s) and upserted suppliers — all modules updated",
                     "affected_rows": rows_inserted,
                     "action":       "inserted",
                 })
-                if analysis:
-                    analysis["corrections_count"] = len(correction_report)
-                # Invalidate all caches so every module picks up the new data immediately
-                for prefix in ["spend_kpis", "spend_tail", "spend_pareto", "spend_monthly_trend",
-                               "supplier_list", "supplier_360", "risk_kpis", "risk_country_map",
-                               "health_score"]:
-                    invalidate_prefix(prefix)
-                logger.info("[8b] Persisted %d rows to DB, caches invalidated", rows_inserted)
 
-            # ── Write final status to DB ──────────────────────────────────────
+            if analysis:
+                analysis["corrections_count"] = len(correction_report)
+
+            # Invalidate all caches
+            for prefix in ["spend_kpis", "spend_tail", "spend_pareto", "spend_monthly_trend",
+                           "supplier_list", "supplier_360", "risk_kpis", "risk_country_map",
+                           "health_score", "contracts", "savings"]:
+                invalidate_prefix(prefix)
+            logger.info("[8b] Persisted %d spend rows, caches invalidated", rows_inserted)
+
+            # ── Write final status ─────────────────────────────────────────────
             await self._db_update_run(
                 ingestion_id,
                 status="completed",
@@ -234,7 +298,6 @@ class IDEPipeline:
                 correction_report=correction_report,
             )
         finally:
-            # Always free the file bytes from in-process store
             _FILE_BYTES_STORE.pop(ingestion_id, None)
 
     # ── Stage helpers ──────────────────────────────────────────────────────────
@@ -384,17 +447,379 @@ class IDEPipeline:
                     rows_inserted, len(supplier_cache))
         return rows_inserted
 
-    async def _stage_parse(self, ingestion_id: str, filename: str):
-        fb = _FILE_BYTES_STORE.get(ingestion_id, b"")
-        ext = Path(filename).suffix.lower()
-        parser_cls = PARSER_MAP.get(ext)
-        if not parser_cls:
-            raise ValueError(
-                f"Unsupported file type '{ext}'. Supported: .xlsx, .xls, .csv"
+    # ── New per-type persist helpers ──────────────────────────────────────────
+
+    async def _persist_suppliers_sheet(self, df: pd.DataFrame) -> int:
+        """Upsert Supplier rows from a dedicated Suppliers sheet."""
+        if df.empty:
+            return 0
+        TENANT_ID = self._tenant_id()
+        col = {c.lower(): c for c in df.columns}
+
+        def gcol(*names):
+            for n in names:
+                if n in col: return col[n]
+            return None
+
+        name_col    = gcol("supplier_name", "canonical_name", "vendor_name", "name", "supplier", "vendor")
+        cat_col     = gcol("category", "commodity", "commodity_code")
+        country_col = gcol("country", "country_code")
+        tier_col    = gcol("tier", "supplier_tier")
+        risk_col    = gcol("risk_score", "risk", "composite_score")
+
+        if not name_col:
+            logger.warning("Suppliers sheet missing name column — skipping")
+            return 0
+
+        count = 0
+        for _, row in df.iterrows():
+            name = str(row.get(name_col, "") or "").strip()
+            if not name:
+                continue
+            res = await self.db.execute(
+                select(Supplier).where(
+                    Supplier.tenant_id == TENANT_ID,
+                    Supplier.canonical_name == name,
+                    Supplier.deleted_at.is_(None),
+                )
             )
-        parser = parser_cls()
-        df = await _run_in_executor(parser.parse, fb)
-        return df, ext
+            existing = res.scalar_one_or_none()
+            tier_val = None
+            if tier_col and pd.notna(row.get(tier_col)):
+                try:
+                    tier_val = int(float(str(row[tier_col])))
+                except Exception:
+                    pass
+            risk_val = None
+            if risk_col and pd.notna(row.get(risk_col)):
+                try:
+                    risk_val = Decimal(str(round(float(str(row[risk_col])), 1)))
+                except Exception:
+                    pass
+
+            if existing:
+                if cat_col and pd.notna(row.get(cat_col)):
+                    existing.category = str(row[cat_col]).strip()
+                if country_col and pd.notna(row.get(country_col)):
+                    existing.country = str(row[country_col]).strip()[:3].upper()
+                if tier_val is not None:
+                    existing.tier = tier_val
+                if risk_val is not None:
+                    existing.risk_score = risk_val
+            else:
+                rng = random.Random(hash(name + TENANT_ID))
+                new_sup = Supplier(
+                    id=str(uuid.uuid4()),
+                    tenant_id=TENANT_ID,
+                    canonical_name=name,
+                    aliases=[],
+                    category=str(row[cat_col]).strip() if cat_col and pd.notna(row.get(cat_col)) else None,
+                    country=str(row[country_col]).strip()[:3].upper() if country_col and pd.notna(row.get(country_col)) else None,
+                    tier=tier_val or rng.randint(1, 3),
+                    risk_score=risk_val or Decimal(str(round(rng.uniform(2.0, 8.5), 1))),
+                    total_spend_usd=Decimal("0"),
+                    active_contracts=0,
+                )
+                self.db.add(new_sup)
+                count += 1
+
+        await self.db.commit()
+        logger.info("[suppliers-sheet] Upserted %d suppliers", count)
+        return count
+
+    async def _persist_contracts(self, ingestion_id: str, df: pd.DataFrame) -> int:
+        """Insert Contract rows from a Contracts sheet."""
+        if df.empty:
+            return 0
+        TENANT_ID = self._tenant_id()
+        col = {c.lower(): c for c in df.columns}
+
+        def gcol(*names):
+            for n in names:
+                if n in col: return col[n]
+            return None
+
+        sup_col    = gcol("supplier_name", "supplier", "vendor", "vendor_name")
+        title_col  = gcol("title", "contract_title", "contract_name", "description", "name")
+        start_col  = gcol("start_date", "commencement_date", "effective_date")
+        end_col    = gcol("end_date", "expiry_date", "expiration_date", "termination_date")
+        val_col    = gcol("value_usd", "value", "amount", "contract_value", "total_value")
+        status_col = gcol("status", "contract_status")
+
+        if not sup_col:
+            logger.warning("Contracts sheet missing supplier column — skipping")
+            return 0
+
+        def _parse_date(v):
+            if v is None or (isinstance(v, float) and pd.isna(v)):
+                return None
+            try:
+                p = pd.to_datetime(str(v), errors="coerce")
+                return p.date() if not pd.isnull(p) else None
+            except Exception:
+                return None
+
+        # Build supplier name → id cache for this tenant
+        sup_res = await self.db.execute(
+            select(Supplier.canonical_name, Supplier.id).where(
+                Supplier.tenant_id == TENANT_ID,
+                Supplier.deleted_at.is_(None),
+            )
+        )
+        sup_cache = {row[0]: str(row[1]) for row in sup_res.fetchall()}
+
+        count = 0
+        for _, row in df.iterrows():
+            sup_name = str(row.get(sup_col, "") or "").strip() if sup_col else ""
+            # Try to find supplier; create minimal one if missing
+            if sup_name not in sup_cache:
+                if not sup_name:
+                    continue
+                rng = random.Random(hash(sup_name + TENANT_ID))
+                new_sup = Supplier(
+                    id=str(uuid.uuid4()),
+                    tenant_id=TENANT_ID,
+                    canonical_name=sup_name,
+                    aliases=[],
+                    tier=rng.randint(1, 3),
+                    risk_score=Decimal(str(round(rng.uniform(2.0, 8.5), 1))),
+                    total_spend_usd=Decimal("0"),
+                    active_contracts=0,
+                )
+                self.db.add(new_sup)
+                await self.db.flush()
+                sup_cache[sup_name] = str(new_sup.id)
+
+            title = str(row[title_col]).strip() if title_col and pd.notna(row.get(title_col)) else f"Contract — {sup_name}"
+            val = 0.0
+            if val_col and pd.notna(row.get(val_col)):
+                try:
+                    val = float(pd.to_numeric(str(row[val_col]), errors="coerce") or 0)
+                except Exception:
+                    pass
+
+            # Determine status
+            raw_status = str(row.get(status_col, "active")).strip().lower() if status_col and pd.notna(row.get(status_col)) else "active"
+            # Normalise status to allowed values
+            STATUS_MAP = {
+                "active": "active", "expired": "expired", "expiring": "expiring_soon",
+                "expiring_soon": "expiring_soon", "draft": "draft", "terminated": "terminated",
+                "cancelled": "terminated",
+            }
+            status_val = STATUS_MAP.get(raw_status, "active")
+
+            end_date_val = _parse_date(row.get(end_col)) if end_col else None
+            if end_date_val and end_date_val < date.today() and status_val == "active":
+                status_val = "expired"
+
+            contract = Contract(
+                id=str(uuid.uuid4()),
+                tenant_id=TENANT_ID,
+                supplier_id=sup_cache[sup_name],
+                title=title[:500],
+                start_date=_parse_date(row.get(start_col)) if start_col else None,
+                end_date=end_date_val,
+                value_usd=Decimal(str(round(val, 2))),
+                status=status_val,
+            )
+            self.db.add(contract)
+            count += 1
+
+        await self.db.commit()
+        logger.info("[contracts-sheet] Inserted %d contracts", count)
+        return count
+
+    async def _persist_risk(self, ingestion_id: str, df: pd.DataFrame) -> int:
+        """Insert SupplierRiskScore rows from a Risk sheet."""
+        if df.empty:
+            return 0
+        TENANT_ID = self._tenant_id()
+        col = {c.lower(): c for c in df.columns}
+
+        def gcol(*names):
+            for n in names:
+                if n in col: return col[n]
+            return None
+
+        sup_col         = gcol("supplier_name", "supplier", "vendor", "vendor_name")
+        date_col        = gcol("score_date", "date", "assessment_date", "risk_date")
+        financial_col   = gcol("financial_score", "financial", "financial_risk")
+        geo_col         = gcol("geo_score", "geo", "geopolitical", "geographic_risk")
+        esg_col         = gcol("esg_score", "esg", "environmental")
+        operational_col = gcol("operational_score", "operational", "operational_risk")
+        compliance_col  = gcol("compliance_score", "compliance")
+        composite_col   = gcol("composite_score", "composite", "overall_score", "risk_score", "score")
+
+        if not sup_col:
+            logger.warning("Risk sheet missing supplier column — skipping")
+            return 0
+
+        # Supplier cache
+        sup_res = await self.db.execute(
+            select(Supplier.canonical_name, Supplier.id).where(
+                Supplier.tenant_id == TENANT_ID,
+                Supplier.deleted_at.is_(None),
+            )
+        )
+        sup_cache = {row[0]: str(row[1]) for row in sup_res.fetchall()}
+
+        def _safe_dec(v, default=5.0) -> Decimal:
+            try:
+                f = float(pd.to_numeric(str(v), errors="coerce") or default)
+                f = max(0.0, min(10.0, f))
+                return Decimal(str(round(f, 2)))
+            except Exception:
+                return Decimal(str(default))
+
+        count = 0
+        for _, row in df.iterrows():
+            sup_name = str(row.get(sup_col, "") or "").strip() if sup_col else ""
+            if not sup_name:
+                continue
+            if sup_name not in sup_cache:
+                rng = random.Random(hash(sup_name + TENANT_ID))
+                new_sup = Supplier(
+                    id=str(uuid.uuid4()), tenant_id=TENANT_ID,
+                    canonical_name=sup_name, aliases=[],
+                    tier=rng.randint(1, 3),
+                    risk_score=Decimal(str(round(rng.uniform(2.0, 8.5), 1))),
+                    total_spend_usd=Decimal("0"), active_contracts=0,
+                )
+                self.db.add(new_sup)
+                await self.db.flush()
+                sup_cache[sup_name] = str(new_sup.id)
+
+            fin   = _safe_dec(row.get(financial_col))   if financial_col   else Decimal("5")
+            geo   = _safe_dec(row.get(geo_col))          if geo_col         else Decimal("5")
+            esg   = _safe_dec(row.get(esg_col))          if esg_col         else Decimal("5")
+            ops   = _safe_dec(row.get(operational_col))  if operational_col else Decimal("5")
+            comp  = _safe_dec(row.get(compliance_col))   if compliance_col  else Decimal("5")
+
+            # Composite: average of available dimensions, or explicit column
+            if composite_col and pd.notna(row.get(composite_col)):
+                composite = _safe_dec(row.get(composite_col))
+            else:
+                composite = Decimal(str(round(float((fin + geo + esg + ops + comp) / 5), 2)))
+
+            score_date_val: date = date.today()
+            if date_col and pd.notna(row.get(date_col)):
+                try:
+                    p = pd.to_datetime(str(row[date_col]), errors="coerce")
+                    if not pd.isnull(p):
+                        score_date_val = p.date()
+                except Exception:
+                    pass
+
+            risk_row = SupplierRiskScore(
+                id=str(uuid.uuid4()),
+                tenant_id=TENANT_ID,
+                supplier_id=sup_cache[sup_name],
+                score_date=score_date_val,
+                financial_score=fin,
+                geo_score=geo,
+                esg_score=esg,
+                operational_score=ops,
+                compliance_score=comp,
+                composite_score=composite,
+            )
+            self.db.add(risk_row)
+            count += 1
+
+        await self.db.commit()
+        logger.info("[risk-sheet] Inserted %d risk score rows", count)
+        return count
+
+    async def _persist_savings(self, ingestion_id: str, df: pd.DataFrame) -> int:
+        """Insert SavingsOpportunity rows from a Savings sheet."""
+        if df.empty:
+            return 0
+        TENANT_ID = self._tenant_id()
+        col = {c.lower(): c for c in df.columns}
+
+        def gcol(*names):
+            for n in names:
+                if n in col: return col[n]
+            return None
+
+        type_col    = gcol("type", "saving_type", "opportunity_type", "category_type")
+        sup_col     = gcol("supplier_name", "supplier", "vendor")
+        val_col     = gcol("estimated_value_usd", "estimated_value", "value", "savings_value", "amount")
+        conf_col    = gcol("confidence", "confidence_score")
+        effort_col  = gcol("effort", "effort_level")
+        status_col  = gcol("status")
+        rat_col     = gcol("rationale", "ignite_rationale", "description", "notes")
+        cat_col     = gcol("category", "commodity")
+
+        if not val_col:
+            logger.warning("Savings sheet missing value column — skipping")
+            return 0
+
+        # Supplier cache
+        sup_res = await self.db.execute(
+            select(Supplier.canonical_name, Supplier.id).where(
+                Supplier.tenant_id == TENANT_ID,
+                Supplier.deleted_at.is_(None),
+            )
+        )
+        sup_cache = {row[0]: str(row[1]) for row in sup_res.fetchall()}
+
+        VALID_TYPES   = {"consolidation", "renegotiation", "substitution", "contract_compliance", "tail_spend_reduction"}
+        VALID_EFFORTS = {"low", "medium", "high"}
+        VALID_STATUS  = {"identified", "in_progress", "realized", "dismissed"}
+
+        count = 0
+        for _, row in df.iterrows():
+            val = 0.0
+            if pd.notna(row.get(val_col)):
+                try:
+                    val = float(pd.to_numeric(str(row[val_col]), errors="coerce") or 0)
+                except Exception:
+                    pass
+            if val <= 0:
+                continue
+
+            sup_name = str(row.get(sup_col, "") or "").strip() if sup_col else ""
+            sup_id: str | None = sup_cache.get(sup_name) if sup_name else None
+
+            raw_type = str(row.get(type_col, "consolidation") or "consolidation").strip().lower().replace(" ", "_") if type_col else "consolidation"
+            sav_type = raw_type if raw_type in VALID_TYPES else "consolidation"
+
+            conf_val = 0.7
+            if conf_col and pd.notna(row.get(conf_col)):
+                try:
+                    conf_val = float(pd.to_numeric(str(row[conf_col]), errors="coerce") or 0.7)
+                    if conf_val > 1:
+                        conf_val = conf_val / 100
+                except Exception:
+                    pass
+
+            effort_val = str(row.get(effort_col, "medium") or "medium").strip().lower() if effort_col else "medium"
+            effort_val = effort_val if effort_val in VALID_EFFORTS else "medium"
+
+            status_val = str(row.get(status_col, "identified") or "identified").strip().lower() if status_col else "identified"
+            status_val = status_val if status_val in VALID_STATUS else "identified"
+
+            rationale = str(row.get(rat_col, "") or "").strip() if rat_col else ""
+
+            sav = SavingsOpportunity(
+                id=str(uuid.uuid4()),
+                tenant_id=TENANT_ID,
+                type=sav_type,
+                supplier_id=sup_id,
+                supplier_name=sup_name or None,
+                estimated_value_usd=Decimal(str(round(val, 2))),
+                confidence=conf_val,
+                effort=effort_val,
+                status=status_val,
+                ignite_rationale=rationale or f"Savings opportunity identified from uploaded dataset (ingestion {ingestion_id[:8]})",
+                category=str(row[cat_col]).strip() if cat_col and pd.notna(row.get(cat_col)) else None,
+            )
+            self.db.add(sav)
+            count += 1
+
+        await self.db.commit()
+        logger.info("[savings-sheet] Inserted %d savings opportunities", count)
+        return count
 
     def _infer_schema(self, df) -> dict:
         return {col: str(dtype) for col, dtype in df.dtypes.items()}

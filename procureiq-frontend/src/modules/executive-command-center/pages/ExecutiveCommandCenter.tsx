@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Grid, Box, Typography, Skeleton, Alert, Button, Chip, Divider } from '@mui/material';
+import { Grid, Box, Typography, Skeleton, Button, Chip, Divider } from '@mui/material';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
   ResponsiveContainer,
@@ -19,8 +19,9 @@ import KPICard             from '@/core/components/KPICard/KPICard';
 import DataTable, { Column } from '@/core/components/DataTable/DataTable';
 import ExecutiveSummary    from '@/core/components/ExecutiveSummary/ExecutiveSummary';
 import DataSourceBadge     from '@/core/components/DataSourceBadge';
+import DatasetGate         from '@/core/components/DatasetGate/DatasetGate';
 import {
-  useSpendKPIs, useMonthlyTrend, useTopSuppliers, useCategorySpend, useDataStatus,
+  useSpendKPIs, useMonthlyTrend, useTopSuppliers, useCategorySpend,
 } from '../hooks/useSpendData';
 import { formatCurrency, formatPercent } from '@/core/utils/format';
 
@@ -296,53 +297,25 @@ function RecentActivity({ kpis }: { kpis: ReturnType<typeof useSpendKPIs>['data'
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ExecutiveCommandCenter() {
-  const kpisQuery       = useSpendKPIs();
-  const trendQuery      = useMonthlyTrend();
-  const suppQuery       = useTopSuppliers(10);
-  const categoryQuery   = useCategorySpend();
-  const dataStatusQuery = useDataStatus();
+  const kpisQuery     = useSpendKPIs();
+  const trendQuery    = useMonthlyTrend();
+  const suppQuery     = useTopSuppliers(10);
+  const categoryQuery = useCategorySpend();
 
   const kpis       = kpisQuery.data;
   const trend      = trendQuery.data ?? [];
   const suppliers  = suppQuery.data  ?? [];
   const categories = categoryQuery.data ?? [];
-  const dataStatus = dataStatusQuery.data;
 
-  // Fallback categories when DB has no category data
-  const displayCategories = categories.length > 0
-    ? categories.slice(0, 8)
-    : [
-        { category: 'Software & Cloud',     percent: 38, total_spend: 0 },
-        { category: 'Consulting',            percent: 22, total_spend: 0 },
-        { category: 'IT Services',           percent: 18, total_spend: 0 },
-        { category: 'Hardware & Networking', percent: 11, total_spend: 0 },
-        { category: 'Data & Analytics',      percent:  7, total_spend: 0 },
-        { category: 'Other',                 percent:  4, total_spend: 0 },
-      ];
+  // Only show real data — no fallback category placeholders
+  const displayCategories = categories.slice(0, 8);
 
   const summaryText = kpis
     ? `Total procurement spend of ${formatCurrency(kpis.total_spend)} with ${kpis.active_suppliers} active suppliers across ${kpis.active_contracts_count} contracts. Tail spend is ${kpis.tail_spend_percent}% — ${kpis.tail_spend_percent > 20 ? 'above industry benchmark of 20%, indicating consolidation opportunity' : 'within target range'}. Procurement Health Score is ${kpis.procurement_health_score}/100. ${kpis.savings_identified > 0 ? `${formatCurrency(kpis.savings_identified)} in savings opportunities identified.` : ''}`
     : 'Loading procurement performance summary…';
 
   return (
-    <Box>
-      {/* Demo Mode Banner */}
-      {dataStatus?.is_demo_only && (
-        <Alert
-          severity="warning"
-          icon={<WarningAmberIcon />}
-          action={
-            <Button color="inherit" size="small" href="/app/ide" sx={{ fontWeight: 700, fontSize: 12 }}>
-              Upload Data
-            </Button>
-          }
-          sx={{ mb: 2 }}
-        >
-          <strong>Demo Dataset</strong> — You are viewing the built-in seed dataset.
-          Upload real procurement files via the Intelligent Data Engine to see your organisation's data.
-        </Alert>
-      )}
-
+    <DatasetGate moduleName="Executive Command Center">
       {/* Executive Summary */}
       <ExecutiveSummary
         title="Executive Briefing"
@@ -549,6 +522,6 @@ export default function ExecutiveCommandCenter() {
           />
         </Box>
       </Box>
-    </Box>
+    </DatasetGate>
   );
 }

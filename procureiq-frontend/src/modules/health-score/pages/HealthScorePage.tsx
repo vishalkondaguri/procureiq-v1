@@ -21,6 +21,7 @@ import {
 } from 'recharts';
 import ExecutiveSummary from '@/core/components/ExecutiveSummary/ExecutiveSummary';
 import { useHealthScore } from '../hooks/useHealthData';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 // ── Palette ────────────────────────────────────────────────────────────────────
 const IBM = {
@@ -204,6 +205,7 @@ export default function HealthScorePage() {
   const gradeColor = GRADE_COLOR[grade] ?? '#161616';
 
   return (
+    <DatasetGate moduleName="Procurement Health Score">
     <Box>
       <ExecutiveSummary
         title="Procurement Health Score"
@@ -400,5 +402,6 @@ export default function HealthScorePage() {
         </Box>
       )}
     </Box>
+  </DatasetGate>
   );
 }

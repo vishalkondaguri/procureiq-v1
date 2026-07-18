@@ -18,6 +18,7 @@ import KPICard from '@/core/components/KPICard/KPICard';
 import ExecutiveSummary from '@/core/components/ExecutiveSummary/ExecutiveSummary';
 import { useSavingsOpportunities } from '../hooks/useSavingsData';
 import { formatCurrency } from '@/core/utils/format';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 const TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   consolidation:        { label: 'Consolidation',       icon: <CompareArrowsIcon />, color: '#0f62fe' },
@@ -61,6 +62,7 @@ export default function SavingsEnginePage() {
     : 'Loading savings analysis…';
 
   return (
+    <DatasetGate moduleName="Savings Opportunity Engine">
     <Box>
       <ExecutiveSummary
         title="Savings Opportunity Engine"
@@ -231,5 +233,6 @@ export default function SavingsEnginePage() {
         }
       </Grid>
     </Box>
+  </DatasetGate>
   );
 }

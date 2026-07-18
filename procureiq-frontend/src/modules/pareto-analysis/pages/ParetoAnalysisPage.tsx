@@ -8,6 +8,7 @@ import ExecutiveSummary from '@/core/components/ExecutiveSummary/ExecutiveSummar
 import KPICard from '@/core/components/KPICard/KPICard';
 import { usePareto } from '@/modules/executive-command-center/hooks/useSpendData';
 import { formatCurrency, formatPercent } from '@/core/utils/format';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 const PARETO_COLS: Column<Record<string, unknown>>[] = [
   { id: 'rank',              label: '#',          minWidth: 52,  align: 'center' },
@@ -44,6 +45,7 @@ export default function ParetoAnalysisPage() {
     : 'Loading Pareto analysis…';
 
   return (
+    <DatasetGate moduleName="80/20 Pareto Analysis">
     <Box>
       <ExecutiveSummary
         title="80/20 Pareto Analysis"
@@ -114,5 +116,6 @@ export default function ParetoAnalysisPage() {
         />
       </Box>
     </Box>
+  </DatasetGate>
   );
 }

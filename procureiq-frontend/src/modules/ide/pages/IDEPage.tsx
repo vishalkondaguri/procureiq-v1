@@ -4,7 +4,7 @@ import {
   Box, Typography, Button, Paper, LinearProgress, Chip, Alert,
   List, ListItem, ListItemText, CircularProgress,
   Grid, Table, TableBody, TableCell, TableRow, TableHead,
-  Accordion, AccordionSummary, AccordionDetails, Stack,
+  Accordion, AccordionSummary, AccordionDetails,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -401,16 +401,19 @@ export default function IDEPage() {
     try {
       const form = new FormData();
       form.append('file', acceptedFiles[0]);
-      const { data } = await apiClient.post('/ide/upload', form, {
+      // Use /upload-dataset — clears previous tenant data before ingesting
+      const { data } = await apiClient.post('/ide/upload-dataset', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      // Invalidate dataset-status immediately so DatasetGates re-evaluate
+      void queryClient.invalidateQueries({ queryKey: ['ide-dataset-status'] });
       pollStatus(data.ingestion_id);
     } catch (err: any) {
       setUploadError(err?.response?.data?.detail ?? 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
-  }, [pollStatus]);
+  }, [pollStatus, queryClient]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -437,36 +440,74 @@ export default function IDEPage() {
     <Box>
       <ExecutiveSummary
         title="Intelligent Data Engine"
-        summary="Upload any procurement file — Excel, CSV, PDF, DOCX, JSON, or XML. The IDE automatically reads it, maps columns to the canonical schema, cleans the data, detects duplicates, normalises supplier names and dates, then delivers a full analysis: column profiles, spend summary, top suppliers, date range, and an Ignite AI narrative."
-        highlights={['AI Column Mapping', 'Supplier Deduplication', 'Data Health Score', 'Full Column Profiles', 'Ignite AI Summary']}
+        summary="Upload your procurement workbook — the single source of truth for all ProcureIQ modules. The IDE reads every sheet, maps columns to the canonical schema, cleans the data, deduplicates suppliers, normalises dates and currencies, then populates all analytics modules instantly."
+        highlights={['Multi-Sheet Excel Support', 'AI Column Mapping', 'Supplier Deduplication', 'Data Health Score', 'Ignite AI Summary']}
       />
 
-      {/* Upload zone */}
-      <Paper {...getRootProps()} elevation={0} sx={{
-        border: `2px dashed ${isDragActive ? '#0f62fe' : '#c6c6c6'}`,
-        borderRadius: 2, p: 4, textAlign: 'center', cursor: 'pointer',
-        bgcolor: isDragActive ? '#eff4ff' : '#fafafa',
-        transition: 'all 0.2s', mb: 3,
-        '&:hover': { borderColor: '#0f62fe', bgcolor: '#eff4ff' },
-        opacity: (uploading || polling) ? 0.6 : 1,
+      {/* ── Primary Dataset Upload Banner ─────────────────────────────────── */}
+      <Box sx={{
+        bgcolor: '#001d6c', borderRadius: 1, p: 3, mb: 3,
+        display: 'flex', alignItems: 'center', gap: 3,
+        flexWrap: 'wrap',
       }}>
-        <input {...getInputProps()} />
-        <CloudUploadIcon sx={{ fontSize: 44, color: '#0f62fe', mb: 1 }} />
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-          {isDragActive ? 'Drop your file here…' : 'Drag & drop your procurement file'}
+        <Box sx={{ flex: 1, minWidth: 240 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 16, color: '#fff', mb: 0.5 }}>
+            Upload Procurement Dataset
+          </Typography>
+          <Typography sx={{ fontSize: 13, color: '#a8c7fa', lineHeight: 1.6 }}>
+            Upload a multi-sheet Excel workbook to populate all modules. Previous data is replaced on each upload — Excel is the only source of truth.
+          </Typography>
+        </Box>
+        <Box>
+          <Paper {...getRootProps()} elevation={0} sx={{
+            border: `2px dashed ${isDragActive ? '#78a9ff' : 'rgba(255,255,255,0.3)'}`,
+            borderRadius: 1, px: 4, py: 2.5, textAlign: 'center', cursor: 'pointer',
+            bgcolor: isDragActive ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+            transition: 'all 0.2s', minWidth: 280,
+            '&:hover': { borderColor: '#78a9ff', bgcolor: 'rgba(255,255,255,0.10)' },
+            opacity: (uploading || polling) ? 0.6 : 1,
+          }}>
+            <input {...getInputProps()} />
+            <CloudUploadIcon sx={{ fontSize: 32, color: '#78a9ff', mb: 0.5 }} />
+            <Typography sx={{ fontWeight: 700, fontSize: 14, color: '#fff', mb: 0.5 }}>
+              {isDragActive ? 'Drop here…' : 'Drag & drop or browse'}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: '#a8c7fa', mb: 1.5 }}>
+              XLSX / XLS · Max 50 MB
+            </Typography>
+            <Button variant="contained" size="small" startIcon={<CloudUploadIcon />}
+              disabled={uploading || polling}
+              sx={{ bgcolor: '#0f62fe', '&:hover': { bgcolor: '#0353e9' }, fontWeight: 700 }}>
+              {uploading ? 'Uploading…' : 'Select File'}
+            </Button>
+          </Paper>
+        </Box>
+      </Box>
+
+      {/* Supported sheet types guide */}
+      <Box sx={{ bgcolor: '#fff', border: '1px solid #e0e0e0', borderRadius: 1, p: 2, mb: 3 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: 13, mb: 1.5 }}>
+          Supported Excel Sheet Types — include any or all in your workbook
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Supports XLSX, XLS, CSV, PDF, DOCX, JSON, XML · Max 50 MB
-        </Typography>
-        <Stack direction="row" spacing={0.75} justifyContent="center" sx={{ mb: 2 }}>
-          {['XLSX', 'XLS', 'CSV', 'PDF', 'DOCX', 'JSON', 'XML'].map(fmt => (
-            <Chip key={fmt} label={fmt} size="small" sx={{ bgcolor: '#e0e0e0', fontWeight: 700, fontSize: 11 }} />
+        <Grid container spacing={1.5}>
+          {[
+            { type: 'Spend_Data',  aliases: 'Transactions, Spend, Invoice_Data',  desc: 'Purchase orders, invoices, spend transactions', color: '#0f62fe' },
+            { type: 'Suppliers',   aliases: 'Vendor_Master, Vendors',              desc: 'Supplier master data — name, category, country, tier', color: '#6929c4' },
+            { type: 'Contracts',   aliases: 'Contract_Register, Contract_List',    desc: 'Contract records — title, dates, value, status', color: '#007d79' },
+            { type: 'Risk',        aliases: 'Risk_Register, Supplier_Risk',        desc: 'Supplier risk scores — financial, ESG, geo, compliance', color: '#da1e28' },
+            { type: 'Savings',     aliases: 'Savings_Pipeline, Savings_Opportunities', desc: 'Savings pipeline — type, value, confidence, effort', color: '#198038' },
+            { type: 'Forecast',    aliases: 'Spend_Forecast, Forecasting',         desc: 'Monthly spend forecast data', color: '#f1c21b' },
+          ].map(s => (
+            <Grid item xs={12} sm={6} md={4} key={s.type}>
+              <Box sx={{ border: `1px solid ${s.color}30`, borderLeft: `3px solid ${s.color}`, borderRadius: 1, p: 1.5 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 13, color: s.color }}>{s.type}</Typography>
+                <Typography sx={{ fontSize: 11, color: '#525252', mb: 0.25 }}>{s.desc}</Typography>
+                <Typography sx={{ fontSize: 10, color: '#8d8d8d' }}>Also: {s.aliases}</Typography>
+              </Box>
+            </Grid>
           ))}
-        </Stack>
-        <Button variant="contained" startIcon={<CloudUploadIcon />} disabled={uploading || polling}>
-          {uploading ? 'Uploading…' : 'Browse Files'}
-        </Button>
-      </Paper>
+        </Grid>
+      </Box>
 
       {uploadError && <Alert severity="error" sx={{ mb: 2 }}>{uploadError}</Alert>}
 

@@ -25,6 +25,7 @@ import KPICard               from '@/core/components/KPICard/KPICard';
 import StatusBadge           from '@/core/components/StatusBadge/StatusBadge';
 import { useContracts, useContractKPIs, useContractExpiryTimeline } from '../hooks/useContractData';
 import { formatCurrency, formatDate } from '@/core/utils/format';
+import DatasetGate from '@/core/components/DatasetGate/DatasetGate';
 
 // ── Color palette ──────────────────────────────────────────────────────────────
 const IBM = {
@@ -181,6 +182,7 @@ export default function ContractIntelligencePage() {
     : 'Loading contract intelligence…';
 
   return (
+    <DatasetGate moduleName="Contract Intelligence">
     <Box>
       <ExecutiveSummary
         title="Contract Intelligence"
@@ -369,5 +371,6 @@ export default function ContractIntelligencePage() {
         />
       </Box>
     </Box>
+    </DatasetGate>
   );
 }
