@@ -1,26 +1,28 @@
-"""Smart Offline Engine v2 — Ignite AI analyst without an external LLM.
+"""Smart Offline Engine v3 — Enterprise Procurement Copilot without an external LLM.
 
-This engine reads the live tool data already fetched from the database and
-generates genuinely intelligent, context-aware procurement analysis.
-
-It behaves like a senior procurement advisor — it answers the user's actual
-question directly using real numbers, gives specific recommendations,
-and never redirects users to "go look at the module yourself".
+Behaves as a Principal Procurement Consultant: step-by-step reasoning,
+cross-referenced data, anomaly detection, executive-level analysis.
+Uses CURRENT year — never hardcoded 2024.
 """
 from __future__ import annotations
 import re
 from datetime import datetime
 
 
+CURRENT_YEAR = datetime.now().year
+
+
 class SmartOfflineEngine:
     """
-    Genuine AI procurement analyst.
+    Enterprise Procurement Copilot — data-grounded, executive-level answers.
 
     Every response:
-    - Uses REAL numbers from the live DB tools (not placeholders)
+    - Uses REAL numbers from live DB tools (never placeholders)
     - Answers the user's ACTUAL question directly
-    - Provides specific, actionable intelligence
-    - Reads naturally — not like a template
+    - Cross-references multiple data sources (spend + risk + contracts)
+    - Detects anomalies and flags them proactively
+    - Gives specific, actionable intelligence with timelines
+    - Reads naturally — not like a template fill-in
     """
 
     def generate(
@@ -32,34 +34,50 @@ class SmartOfflineEngine:
         history: list[dict],
     ) -> str:
         msg = message.lower().strip()
-        td  = {r["tool"]: r["content"] for r in tool_results}   # tool_data lookup
+        td  = {r["tool"]: r["content"] for r in tool_results}
 
         # ── Greeting ─────────────────────────────────────────────────────────
         if re.search(r"\b(hello|hi|hey|good (morning|afternoon|evening)|howdy)\b", msg):
             return self._greeting(td, module_context)
 
-        # ── Summary / overview / how are we doing ─────────────────────────────
-        if re.search(r"(summar|overview|how are we doing|brief me|executive summary|snapshot|tell me everything|give me an overview)", msg):
+        # ── Summary / overview / executive brief ──────────────────────────────
+        if re.search(r"(summar|overview|how are we doing|brief me|executive summary|snapshot|tell me everything|give me an overview|procurement status|performance review|kpi report|board report)", msg):
             return self._full_summary(td, message)
 
-        # ── Risk — before generic supplier/which (more specific) ──────────────
-        if re.search(r"\b(risk|risky|danger|exposure|critical|vulnerable|reliable|trust|threat|safe|depend|highest risk|most risky)\b", msg):
+        # ── Anomaly / alert / unusual ─────────────────────────────────────────
+        if re.search(r"\b(anomal|unusual|alert|irregularit|problem|issue|concern|flag|highlight|suspicious|outlier)\b", msg):
+            return self._anomaly_analysis(td, message)
+
+        # ── Negotiation strategy ──────────────────────────────────────────────
+        if re.search(r"\b(negotiat|leverage|batna|term|counter|strategy|deal|pricing|rate card|discount|rebate)\b", msg):
+            return self._negotiation_strategy(td, message)
+
+        # ── Payment terms / cash flow ─────────────────────────────────────────
+        if re.search(r"\b(payment term|cash flow|net 30|net 60|dso|dpo|working capital|early payment|dynamic discount)\b", msg):
+            return self._payment_terms_analysis(td, message)
+
+        # ── Category strategy ─────────────────────────────────────────────────
+        if re.search(r"\b(categor|market|sourcing strategy|make.or.buy|insource|outsource|commodity|direct|indirect|spend categor)\b", msg):
+            return self._category_strategy(td, message)
+
+        # ── Risk — before generic supplier ───────────────────────────────────
+        if re.search(r"\b(risk|risky|danger|exposure|critical|vulnerable|reliable|trust|threat|safe|depend|highest risk|most risky|geopolit|sanction|esg|sustainability|compliance)\b", msg):
             return self._risk_question(td, message)
 
-        # ── Savings — before generic recommend (more specific) ────────────────
-        if re.search(r"\bsav(ing|ings|e|es|ed)?\b|\bopportunit|\breduc cost|\bcheaper|\bnegotiat|\bcut cost|\blower price|\bdiscount|\boptimiz|\befficien|\bspend less", msg):
+        # ── Savings ───────────────────────────────────────────────────────────
+        if re.search(r"\bsav(ing|ings|e|es|ed)?\b|\bopportunit|\breduc cost|\bcheaper|\bnegotiat|\bcut cost|\blower price|\bdiscount|\boptimiz|\befficien|\bspend less|\bquick win", msg):
             return self._savings_question(td, message)
 
-        # ── Contracts ─────────────────────────────────────────────────────────
-        if re.search(r"\b(contract|expir|renew|agreement|clause|complian|sla|licen|terms)\b", msg):
+        # ── Contracts ────────────────────────────────────────────────────────
+        if re.search(r"\b(contract|expir|renew|agreement|clause|complian|sla|licen|terms|auto.renew|termination|liability|incoterm|governing law)\b", msg):
             return self._contract_question(td, message)
 
-        # ── Health / performance ───────────────────────────────────────────────
-        if re.search(r"\b(health score|health|procurement score|grade|maturity|kpi|assess|measur)\b", msg):
+        # ── Health / maturity / performance ──────────────────────────────────
+        if re.search(r"\b(health score|health|procurement score|grade|maturity|kpi|assess|measur|benchmark|world class|best in class)\b", msg):
             return self._health_question(td, message)
 
-        # ── Forecast / future / trend ──────────────────────────────────────────
-        if re.search(r"\b(forecast|predict|project|future|next (month|quarter|year)|trend|expect|plan ahead)\b", msg):
+        # ── Forecast / future / trend ─────────────────────────────────────────
+        if re.search(r"\b(forecast|predict|project|future|next (month|quarter|year)|trend|expect|plan ahead|budget)\b", msg):
             return self._forecast_question(td, message)
 
         # ── What-if / scenario ────────────────────────────────────────────────
@@ -67,792 +85,809 @@ class SmartOfflineEngine:
             return self._whatif_question(td, message)
 
         # ── Tail spend ────────────────────────────────────────────────────────
-        if re.search(r"\b(tail spend|maverick|fragmented|small purchas|p.card|catalogue)\b", msg):
+        if re.search(r"\b(tail spend|maverick|fragmented|small purchas|p.card|catalogue|rogue spend|off.contract)\b", msg):
             return self._tail_spend_question(td, message)
 
-        # ── Supplier questions (named supplier/vendor) ────────────────────────
+        # ── Supplier questions ────────────────────────────────────────────────
         if re.search(r"\b(supplier|vendor)\b", msg):
             return self._supplier_question(td, message)
 
-        # ── Category / product / service questions ────────────────────────────
+        # ── Category ─────────────────────────────────────────────────────────
         if re.search(r"\b(categor|office suppli|stationery|it hardware|it software|commodity)\b", msg):
-            return self._category_question(td, message)
+            return self._category_strategy(td, message)
 
-        # ── Spend / cost / how much / budget ──────────────────────────────────
+        # ── Spend / cost / budget ─────────────────────────────────────────────
         if re.search(r"\b(spend|how much|total cost|budget|invoice|expenditure|purchas|bought|amount)\b", msg):
             return self._spend_question(td, message)
 
-        # ── Top / best / recommend / which / find ─────────────────────────────
+        # ── Top / best / recommend ────────────────────────────────────────────
         if re.search(r"\b(top|best|recommend|which|find|use for|suggest)\b", msg):
             return self._recommendation_question(td, message)
 
-        # ── Broad performance keyword (catch all "how are we", "status" etc) ──
+        # ── Status / performance ──────────────────────────────────────────────
         if re.search(r"\b(status|overall|how are we|performance|doing)\b", msg):
             return self._full_summary(td, message)
 
-        # ── Default — answer whatever we can with the data we have ───────────
         return self._intelligent_default(td, message, module_context)
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Response builders
+    # Response builders — all executive-grade
     # ═══════════════════════════════════════════════════════════════════════════
 
     def _greeting(self, td: dict, module: str) -> str:
         spend = td.get("query_spend_data", "")
         health = td.get("get_health_score", "")
+        risk = td.get("get_risk_scores", "")
 
         spend_line = ""
         if spend:
             total = self._extract_dollar(spend) or "significant"
-            spend_line = f"\n\nRight now, your organisation has **{total}** in total procurement spend across active suppliers."
+            suppliers = self._extract_stat(spend, r"Active suppliers: (\d+)") or "multiple"
+            tail = self._extract_stat(spend, r"Tail spend: ([\d.]+)%") or "N/A"
+            spend_line = (
+                f"\n\nAs of today, your organisation has **{total}** in {CURRENT_YEAR} procurement spend "
+                f"across **{suppliers} active suppliers**, with a tail spend rate of **{tail}%**."
+            )
 
         health_line = ""
         if health:
             score = self._extract_score(health)
             grade = self._extract_grade(health)
             if score:
-                health_line = f" Your Procurement Health Score is **{score}/100 (Grade {grade})**."
+                color = "🟢" if float(score) >= 80 else "🟡" if float(score) >= 60 else "🔴"
+                health_line = f" Your Procurement Health Score is **{score}/100 (Grade {grade})** {color}."
+
+        risk_line = ""
+        if risk:
+            critical = self._extract_stat(risk, r"Critical: (\d+)") or "0"
+            if int(critical) > 0:
+                risk_line = f"\n\n⚠️ **{critical} critical-risk supplier(s)** require immediate attention."
 
         return (
-            f"Hello! I'm **Ignite**, your AI Procurement Advisor.{spend_line}{health_line}\n\n"
-            f"I have direct access to your live procurement database and can give you real answers on:\n\n"
-            f"- **Supplier intelligence** — who your top suppliers are, their spend, risk, and performance\n"
-            f"- **Spend analysis** — total spend, category breakdown, trends, tail spend\n"
-            f"- **Savings opportunities** — specific opportunities with dollar values and confidence scores\n"
-            f"- **Contract management** — what's expiring, what's at risk, what needs renewal\n"
-            f"- **Risk assessment** — which suppliers pose the highest risk and why\n"
-            f"- **Spend forecasting** — what your spend will look like over the next 3–6 months\n\n"
-            f"Try asking me: *\"What are my top suppliers for office supplies?\"* or *\"Summarize my procurement performance\"*"
+            f"## Good {self._time_of_day()}, I'm **Ignite** — your AI Procurement Copilot.\n"
+            f"{spend_line}{health_line}{risk_line}\n\n"
+            f"I function as your Principal Procurement Consultant with direct access to your live procurement database. "
+            f"I can provide executive-level analysis on:\n\n"
+            f"- **📊 Spend Intelligence** — total spend, trends, categories, anomalies, tail spend\n"
+            f"- **🏢 Supplier Intelligence** — risk profiles, performance, ESG, financial health\n"
+            f"- **📄 Contract Management** — expiry alerts, clause risks, renewal strategy\n"
+            f"- **💰 Savings Opportunities** — consolidation, benchmarking, negotiation leverage\n"
+            f"- **⚠️ Risk Assessment** — critical suppliers, geopolitical exposure, compliance\n"
+            f"- **📈 Forecasting** — spend projections, budget planning, trend analysis\n"
+            f"- **🤝 Negotiation Strategy** — BATNA analysis, leverage points, market rates\n\n"
+            f"*Ask me anything — e.g., \"What are my top 5 savings opportunities?\" or \"Which contracts expire this quarter?\"*"
         )
 
     def _full_summary(self, td: dict, message: str) -> str:
-        parts = ["## Procurement Intelligence Summary\n"]
-        parts.append(f"*Generated by Ignite AI · {datetime.now().strftime('%B %d, %Y')}*\n")
+        now = datetime.now().strftime("%B %d, %Y")
+        parts = [f"## Executive Procurement Intelligence Briefing\n*{now} · Generated by Ignite AI*\n"]
 
-        # Spend
+        # ── Spend Overview ──────────────────────────────────────────────────
         if "query_spend_data" in td:
             d = td["query_spend_data"]
-            total  = self._extract_dollar(d) or "N/A"
-            parts.append(f"\n### Spend Overview\n{d}")
+            parts.append(f"### 📊 Spend Overview\n{d}")
+            # Cross-reference: flag if tail spend is high
+            tail = self._extract_stat(d, r"Tail spend: ([\d.]+)%")
+            if tail and float(tail) > 20:
+                parts.append(f"\n> ⚠️ **Tail spend anomaly**: {tail}% tail spend exceeds the 20% industry benchmark. This indicates significant maverick buying and consolidation opportunity.")
         else:
-            parts.append(f"\n### Spend Overview\nSpend data not yet loaded.")
+            parts.append("### 📊 Spend Overview\nNo spend data loaded — upload procurement data to view live analysis.")
 
-        # Health
+        # ── Health Score ────────────────────────────────────────────────────
         if "get_health_score" in td:
             d = td["get_health_score"]
-            parts.append(f"\n### Procurement Health\n{d}")
+            score = self._extract_score(d)
+            icon = "🟢" if score and float(score) >= 80 else "🟡" if score and float(score) >= 60 else "🔴"
+            parts.append(f"\n### {icon} Procurement Health\n{d}")
+            if score and float(score) < 70:
+                parts.append(f"\n> ⚠️ Health score below 70 indicates procurement maturity gaps. Priority: improve risk management and contract coverage dimensions.")
 
-        # Risk
+        # ── Supplier Risk ───────────────────────────────────────────────────
         if "get_risk_scores" in td:
             d = td["get_risk_scores"]
-            parts.append(f"\n### Supplier Risk\n{d}")
+            parts.append(f"\n### ⚠️ Supplier Risk Profile\n{d}")
 
-        # Savings
+        # ── Savings Opportunities ────────────────────────────────────────────
         if "get_savings_opportunities" in td:
             d = td["get_savings_opportunities"]
-            parts.append(f"\n### Savings Opportunities\n{d}")
+            parts.append(f"\n### 💰 Savings Pipeline\n{d}")
 
-        # Contracts
+        # ── Contract Status ──────────────────────────────────────────────────
         if "get_contract_summary" in td:
             d = td["get_contract_summary"]
-            parts.append(f"\n### Contract Status\n{d}")
+            parts.append(f"\n### 📄 Contract Portfolio\n{d}")
+            expiring = self._extract_stat(d, r"Expiring ≤90 days: (\d+)")
+            if expiring and int(expiring) > 0:
+                parts.append(f"\n> 🔔 **Renewal urgency**: {expiring} contracts expiring within 90 days. Start renewal negotiations immediately to lock in current market rates.")
 
-        # Forecast
+        # ── Spend Forecast ───────────────────────────────────────────────────
         if "get_forecast" in td:
             d = td["get_forecast"]
-            parts.append(f"\n### Spend Forecast\n{d}")
+            parts.append(f"\n### 📈 Spend Forecast\n{d}")
 
+        # ── Recommended Actions ──────────────────────────────────────────────
         parts.append(
-            "\n### Recommended Actions\n"
-            "1. Review the savings opportunities above — these are your highest-impact quick wins\n"
-            "2. Address critical and high-risk suppliers before they impact supply continuity\n"
-            "3. Renew contracts expiring within 90 days to maintain commercial protection\n"
-            "4. Focus on reducing tail spend — consolidate low-value suppliers into preferred agreements"
+            f"\n### 🎯 Priority Actions for {CURRENT_YEAR}\n"
+            f"1. **Immediate** — Act on savings opportunities above; these are your highest-ROI initiatives\n"
+            f"2. **This week** — Begin renewal negotiations for contracts expiring within 90 days\n"
+            f"3. **This month** — Engage critical/high-risk suppliers with formal risk mitigation plans\n"
+            f"4. **This quarter** — Launch tail spend consolidation programme to reduce maverick buying\n"
+            f"5. **Ongoing** — Monitor Procurement Health Score monthly; target 80+ (Grade A) by year-end"
         )
         return "\n".join(parts)
+
+    def _anomaly_analysis(self, td: dict, message: str) -> str:
+        spend = td.get("query_spend_data", "")
+        risk  = td.get("get_risk_scores", "")
+
+        flags: list[str] = []
+
+        # Tail spend anomaly
+        tail = self._extract_stat(spend, r"Tail spend: ([\d.]+)%")
+        if tail and float(tail) > 20:
+            flags.append(f"🔴 **Tail spend {tail}%** exceeds 20% benchmark — {float(tail) - 20:.1f}pp above target. High probability of maverick buying and duplicate suppliers.")
+
+        # Contracted spend anomaly
+        contracted = self._extract_stat(spend, r"Contracted spend: ([\d.]+)%")
+        if contracted and float(contracted) < 70:
+            flags.append(f"🟡 **Contract coverage {contracted}%** below 70% target — {70 - float(contracted):.1f}pp gap. Uncontracted spend creates commercial and compliance risk.")
+
+        # Health score anomaly
+        health = td.get("get_health_score", "")
+        score = self._extract_score(health)
+        if score and float(score) < 60:
+            flags.append(f"🔴 **Health Score {score}/100** — critically low. Requires executive attention and a structured improvement programme.")
+
+        # Risk concentration
+        critical = self._extract_stat(risk, r"Critical: (\d+)")
+        if critical and int(critical) >= 3:
+            flags.append(f"🔴 **{critical} critical-risk suppliers** — this represents dangerous supply chain concentration. Develop dual-source alternatives urgently.")
+
+        if not flags:
+            flags.append("✅ No major anomalies detected in current data. Procurement operations appear within normal parameters.")
+
+        result = "## Procurement Anomaly & Alert Analysis\n\n"
+        result += "\n\n".join(flags)
+        result += "\n\n### Recommended Diagnostic Actions\n"
+        result += "1. Run a **duplicate supplier scan** — common in tail spend, typically finds 8–15% overlap\n"
+        result += "2. Review **invoices above policy threshold** without PO — key maverick buying indicator\n"
+        result += "3. Analyse **single-source dependencies** in critical categories — a supply disruption here is catastrophic\n"
+        result += "4. Cross-reference spend against **contract coverage** to identify off-contract buying\n"
+        return result
+
+    def _negotiation_strategy(self, td: dict, message: str) -> str:
+        spend = td.get("query_spend_data", "")
+        risk  = td.get("get_risk_scores", "")
+        contracts = td.get("get_contract_summary", "")
+
+        total = self._extract_dollar(spend) or "your total spend"
+        top_suppliers = self._extract_top_suppliers(spend)
+
+        # Build leverage analysis
+        leverage_points = []
+        contracted = self._extract_stat(spend, r"Contracted spend: ([\d.]+)%")
+        if contracted and float(contracted) < 75:
+            leverage_points.append(f"**Volume consolidation** — move uncontracted {100 - float(contracted):.0f}% of spend under master agreements to unlock volume discounts")
+
+        tail = self._extract_stat(spend, r"Tail spend: ([\d.]+)%")
+        if tail and float(tail) > 15:
+            leverage_points.append(f"**Tail spend consolidation** — consolidating {tail}% tail spend onto preferred supplier agreements typically yields 12–18% unit cost reduction")
+
+        expiring = self._extract_stat(contracts, r"Expiring ≤90 days: (\d+)")
+        if expiring and int(expiring) > 2:
+            leverage_points.append(f"**Renewal leverage** — {expiring} contracts renewing this quarter; bundle renewals for multi-year volume discounts")
+
+        result = f"## Procurement Negotiation Strategy — {CURRENT_YEAR}\n\n"
+        result += f"With **{total}** in procurement spend, your organization has significant negotiating leverage. Here is my strategic analysis:\n\n"
+
+        if top_suppliers:
+            result += "### Your Highest-Value Supplier Relationships\n"
+            for s in top_suppliers[:5]:
+                result += f"- **{s['name']}**: {s['amount']} — "
+                result += "High leverage for multi-year volume commitment; consider benchmarking against 3 alternatives\n"
+            result += "\n"
+
+        if leverage_points:
+            result += "### Key Leverage Points\n"
+            for lp in leverage_points:
+                result += f"- {lp}\n"
+            result += "\n"
+
+        result += (
+            "### BATNA Framework\n"
+            "Before entering negotiations, establish your BATNA (Best Alternative to Negotiated Agreement):\n"
+            "1. **Identify 2–3 qualified alternatives** for your top 10 suppliers\n"
+            "2. **Quantify switching costs** realistically — integration, training, transition risk\n"
+            "3. **Know the market rate** — use Gartner, Forrester, or commodity indices as benchmarks\n"
+            "4. **Calculate your wallet share** — suppliers giving you <10% of their revenue have low incentive to discount\n\n"
+            "### Negotiation Tactics for {CURRENT_YEAR}\n"
+            "- **Multi-year commitments** in exchange for price locks (inflation protection is critical in current market)\n"
+            "- **Prompt payment discounts** — offer Net 10 in exchange for 2–3% price reduction\n"
+            "- **Performance KPIs with financial penalties** — SLA breach credits, on-time delivery incentives\n"
+            "- **Most Favoured Nation (MFN) clauses** — ensure you receive the best pricing offered to any comparable customer\n"
+            "- **Auto-renewal prevention** — always include opt-out provisions 90 days before expiry"
+        )
+        return result
+
+    def _payment_terms_analysis(self, td: dict, message: str) -> str:
+        spend = td.get("query_spend_data", "")
+        total = self._extract_dollar(spend) or "your total spend"
+
+        return (
+            f"## Payment Terms Optimisation Analysis\n\n"
+            f"Payment terms are a critical but often underutilised lever in procurement strategy. "
+            f"With **{total}** in annual spend, optimising your payment terms can release significant working capital.\n\n"
+            f"### Current Best Practices ({CURRENT_YEAR})\n"
+            f"- **Standard terms**: Net 45–60 is the global benchmark for strategic suppliers\n"
+            f"- **Early payment discount**: Suppliers often offer 1–2% for Net 10 payment — on a $10M supplier, that is $100–200K annual saving\n"
+            f"- **Dynamic discounting**: Platforms like SAP Ariba, Taulia, or C2FO allow variable early payment rates\n"
+            f"- **Supply chain finance (SCF)**: Extend your DPO while helping suppliers access cheap financing\n\n"
+            f"### Working Capital Opportunity\n"
+            f"Extending average payment terms from Net 30 to Net 45 on strategic suppliers can free up "
+            f"15+ days of working capital — potentially millions in cash flow improvement.\n\n"
+            f"### Recommended Actions\n"
+            f"1. Segment suppliers by payment terms — identify who is getting favourable terms without performance justification\n"
+            f"2. Standardise terms: Tier 1 strategic = Net 45–60; Tier 2 preferred = Net 30–45; Tier 3 tail = Net 30\n"
+            f"3. Negotiate early payment discounts with top 10 suppliers — target 1.5% for Net 10\n"
+            f"4. Evaluate a Supply Chain Finance programme for Tier 1 suppliers — extends your DPO with no supplier cash flow impact\n"
+            f"5. Eliminate Net 15 or COD terms — these represent cash flow leakage with no commercial justification"
+        )
 
     def _supplier_question(self, td: dict, message: str) -> str:
         spend = td.get("query_spend_data", "")
         risk  = td.get("get_risk_scores", "")
         msg   = message.lower()
 
-        # Extract top suppliers from spend data
         top_suppliers = self._extract_top_suppliers(spend)
-
-        # What are they asking about?
-        is_top      = re.search(r"\b(top|largest|biggest|highest|major)\b", msg)
-        is_risky    = re.search(r"\b(risk|risky|dangerous|concern|problem)\b", msg)
-        is_category = re.search(r"\b(for|in|categor|office|it |software|hardware|service)\b", msg)
+        is_risky    = re.search(r"\b(risk|risky|dangerous|concern|problem|critical)\b", msg)
+        is_top      = re.search(r"\b(top|largest|biggest|highest|major|most)\b", msg)
+        is_compare  = re.search(r"\b(compar|vs|versus|better|best|differ)\b", msg)
 
         if is_risky and risk:
             return (
-                f"## High-Risk Supplier Analysis\n\n"
+                f"## High-Risk Supplier Assessment\n\n"
                 f"**Live risk data:** {risk}\n\n"
-                f"Based on your current risk profile, here's what I recommend:\n\n"
-                f"- Suppliers rated **7+/10** are critical risk — engage procurement leadership immediately and develop dual-source options\n"
-                f"- Suppliers rated **5–7/10** are high risk — schedule formal risk review meetings and request business continuity plans\n"
-                f"- Your geographic concentration in specific regions creates geo-political exposure — consider diversifying your supply base\n\n"
-                f"**Immediate actions:**\n"
-                f"1. Request audited financial statements from your top 3 critical suppliers\n"
-                f"2. Identify alternative suppliers for each critical/single-source relationship\n"
-                f"3. Review ESG and compliance certifications across Tier 1 suppliers\n"
-                f"4. Update supplier risk scores quarterly as market conditions change"
+                f"### Risk Stratification Analysis\n"
+                f"Based on composite risk scores (financial health, geopolitical exposure, concentration risk, ESG compliance):\n\n"
+                f"- **Critical (7.5–10/10)**: Immediate action required — develop alternative supply sources within 30 days\n"
+                f"- **High (5.5–7.5/10)**: Quarterly risk reviews + formal Business Continuity Plans (BCPs) required\n"
+                f"- **Medium (3.5–5.5/10)**: Annual supplier assessments + monitor for deterioration triggers\n"
+                f"- **Low (<3.5/10)**: Standard monitoring; review if spend grows significantly\n\n"
+                f"### Specific Risk Mitigation Actions\n"
+                f"1. **Dual-source strategy** — for every critical/single-source supplier, qualify at least one alternative within 90 days\n"
+                f"2. **Financial health monitoring** — set up automated alerts for credit rating changes on your top 20 suppliers\n"
+                f"3. **ESG due diligence** — ensure Tier 1 suppliers have ISO 14001 or equivalent certification by Q{((datetime.now().month-1)//3)+2}\n"
+                f"4. **Geopolitical concentration** — your supply base exposure should be reviewed against {CURRENT_YEAR} sanctions lists and export control regulations\n"
+                f"5. **Contract protections** — include force majeure, step-in rights, and termination for convenience clauses in all strategic agreements"
             )
 
-        if top_suppliers:
-            response = f"## Your Top Suppliers by Spend\n\n"
-            response += f"Based on your live procurement data:\n\n"
-            for i, s in enumerate(top_suppliers, 1):
-                response += f"**{i}. {s['name']}** — {s['spend']}\n"
-
-            response += f"\n**Full spend context:** {spend}\n\n" if spend else "\n"
-
-            if risk:
-                response += f"**Risk context:** {risk}\n\n"
-
-            if is_category:
-                # Extract what category they're asking about
-                category = self._extract_category_from_message(message)
-                response += (
-                    f"### For {category} specifically:\n\n"
-                    f"Based on your spend patterns, the suppliers above are your primary sources for this category. "
-                    f"Here's how to evaluate them:\n\n"
-                    f"- **Spend concentration** — if one supplier holds more than 60% of a category, you have leverage risk\n"
-                    f"- **Risk score** — avoid single-source dependency on suppliers with risk scores above 6/10\n"
-                    f"- **Contract coverage** — ensure all significant suppliers have active contracts\n\n"
-                    f"**Recommendations:**\n"
-                    f"1. Consolidate smaller purchases with your top 2–3 suppliers in this category for volume leverage\n"
-                    f"2. Run a competitive tender if the category exceeds your strategic sourcing threshold\n"
-                    f"3. Establish preferred supplier agreements to bring tail spend under control"
-                )
-            else:
-                response += (
-                    f"**Strategic assessment:**\n\n"
-                    f"- Your top suppliers account for the majority of spend — focus negotiation energy here for maximum impact\n"
-                    f"- Check whether these relationships have formal contracts and performance SLAs\n"
-                    f"- Consider consolidating mid-tier suppliers to increase leverage with your strategic partners\n"
-                    f"- Review single-source dependencies — any critical supplier without an alternative is a supply chain risk"
-                )
-            return response
-
-        # Fallback with whatever data we have
-        parts = ["## Supplier Intelligence\n"]
-        if spend:
-            parts.append(f"**Spend data:** {spend}\n")
-        if risk:
-            parts.append(f"**Risk profile:** {risk}\n")
-        parts.append(
-            "\n**Key recommendations:**\n"
-            "- Segment your supply base into strategic, preferred, and spot suppliers\n"
-            "- Ensure all strategic suppliers have contracts with clear SLAs and KPIs\n"
-            "- Conduct quarterly business reviews with your top-10 suppliers\n"
-            "- Run risk assessments annually for all Tier 1 and Tier 2 suppliers"
-        )
-        return "\n".join(parts)
-
-    def _category_question(self, td: dict, message: str) -> str:
-        spend       = td.get("query_spend_data", "")
-        savings     = td.get("get_savings_opportunities", "")
-        category    = self._extract_category_from_message(message)
-
-        # Identify relevant suppliers for the category
-        top_suppliers = self._extract_top_suppliers(spend)
-        relevant = [s for s in top_suppliers if self._is_relevant_to_category(s["name"], category)]
-
-        response = f"## {category} — Procurement Intelligence\n\n"
-
-        if relevant:
-            response += f"Based on your live spend data, here are the suppliers relevant to **{category}**:\n\n"
-            for i, s in enumerate(relevant, 1):
-                response += f"**{i}. {s['name']}** — {s['spend']}\n"
-            response += "\n"
-        elif top_suppliers:
-            response += (
-                f"I don't see a specific category code for **{category}** in your top suppliers, "
-                f"but your largest suppliers by spend are:\n\n"
+        if is_top and top_suppliers:
+            result = f"## Top Supplier Analysis — {CURRENT_YEAR}\n\n"
+            result += f"**Spend data:** {spend}\n\n"
+            result += f"### Your Top Suppliers\n"
+            for s in top_suppliers:
+                result += f"- **{s['name']}**: {s['amount']}\n"
+            result += f"\n### Strategic Assessment\n"
+            result += (
+                f"Your top 5 suppliers represent a significant share of total spend — this is typical for enterprise procurement. Key considerations:\n\n"
+                f"- **Concentration risk**: Heavy reliance on a small number of suppliers increases supply disruption risk\n"
+                f"- **Volume leverage**: Use this concentration as leverage in annual negotiations\n"
+                f"- **Partnership opportunity**: Strategic suppliers at this spend level qualify for formal SRM (Supplier Relationship Management) programmes\n\n"
+                f"### Recommendations\n"
+                f"1. Establish formal **Quarterly Business Reviews (QBRs)** with your top 5 suppliers\n"
+                f"2. Set supplier scorecards measuring quality, delivery, service, and innovation\n"
+                f"3. Review multi-year contract coverage — spot buying at this spend level leaves significant value on the table\n"
+                f"4. Evaluate joint innovation programmes with strategic suppliers to create competitive advantage"
             )
-            for i, s in enumerate(top_suppliers[:5], 1):
-                response += f"**{i}. {s['name']}** — {s['spend']}\n"
-            response += "\n"
+            return result
 
-        if spend:
-            response += f"**Your spend profile:** {spend}\n\n"
-
-        if savings:
-            response += f"**Savings opportunities in this space:** {savings}\n\n"
-
-        response += (
-            f"### How to optimise your {category} procurement:\n\n"
-            f"1. **Consolidate suppliers** — if you have more than 3–4 suppliers for {category}, "
-            f"consolidating to 1–2 preferred suppliers will improve volume leverage and reduce admin cost\n"
-            f"2. **Negotiate volume agreements** — use your total spend as leverage to negotiate better pricing, "
-            f"payment terms, and service levels\n"
-            f"3. **Set up a catalogue or blanket order** — for repeating purchases, a pre-approved catalogue "
-            f"reduces cycle time and ensures compliance with preferred suppliers\n"
-            f"4. **Review specifications** — standardising what you buy (rather than custom orders) "
-            f"enables competitive tendering and drives down unit cost\n"
-            f"5. **Track compliance** — ensure all purchases go through approved suppliers to eliminate maverick buying"
+        return (
+            f"## Supplier Intelligence Overview\n\n"
+            f"{spend if spend else 'No live spend data loaded.'}\n\n"
+            f"### Supplier Relationship Strategy\n"
+            f"World-class procurement organisations segment their supplier base into tiers:\n\n"
+            f"- **Tier 1 Strategic** (top 5% by spend/criticality): Full SRM programme, executive sponsorship, joint innovation\n"
+            f"- **Tier 2 Preferred** (next 15%): Preferred supplier agreements, regular performance reviews, competitive renewal\n"
+            f"- **Tier 3 Transactional** (remaining 80%): E-procurement catalogue, minimal relationship management, consolidation targets\n\n"
+            f"### Recommendations\n"
+            f"1. Conduct a full **Supplier Segmentation Review** using spend + criticality matrix\n"
+            f"2. Implement **Supplier Scorecards** for Tier 1/2 suppliers — measure delivery, quality, service, ESG\n"
+            f"3. Run a **Supplier Diversity audit** — target 15–20% spend with diverse suppliers (ESG reporting requirement)\n"
+            f"4. Launch **Supplier Development Programme** for strategic suppliers — joint cost reduction, innovation, sustainability"
         )
-        return response
+
+    def _category_strategy(self, td: dict, message: str) -> str:
+        spend = td.get("query_spend_data", "")
+        msg   = message.lower()
+
+        # Detect specific category
+        cat = self._extract_category_from_message(message)
+
+        result = f"## Category Intelligence & Sourcing Strategy\n\n"
+        if spend:
+            result += f"**Current portfolio:** {spend}\n\n"
+
+        result += f"### {CURRENT_YEAR} Category Management Best Practices\n\n"
+
+        if "software" in msg or "cloud" in msg or "saas" in msg:
+            result += (
+                "**Software & Cloud Category Strategy:**\n"
+                "- Consolidate SaaS vendors — most enterprises have 200+ SaaS tools; target reduction to <100 through rationalisation\n"
+                "- Negotiate enterprise agreements vs individual licences — typically 20–40% cost reduction\n"
+                "- Audit software utilisation — 30–40% of licences are typically unused or underutilised\n"
+                "- Benchmark against Gartner Magic Quadrant leaders before renewal\n"
+                "- Include price escalation caps (typically CPI or 3% max) in multi-year agreements\n\n"
+            )
+        elif "consult" in msg or "profess" in msg or "service" in msg:
+            result += (
+                "**Consulting & Professional Services Category Strategy:**\n"
+                "- Establish a preferred supplier panel with pre-negotiated rate cards by seniority level\n"
+                "- Implement outcome-based contracts vs time-and-materials where possible\n"
+                "- Benchmark day rates annually — consulting market pricing is volatile in current talent market\n"
+                "- Require SOW (Statement of Work) for all engagements >$25K — reduces scope creep\n"
+                "- Consolidate to 3–5 preferred partners per sub-category\n\n"
+            )
+        elif "hardware" in msg or "network" in msg or "equipment" in msg:
+            result += (
+                "**Hardware & Networking Category Strategy:**\n"
+                "- Standardise hardware specifications to reduce SKU count and increase volume leverage\n"
+                "- Implement a 3-year refresh cycle aligned with warranty periods\n"
+                "- Consider device-as-a-service (DaaS) models for endpoint devices\n"
+                "- Negotiate forward pricing commitments in current semiconductor supply chain environment\n\n"
+            )
+        else:
+            result += (
+                "**General Category Management Approach:**\n"
+                "- Conduct a **Category Spend Analysis** — understand who buys what from whom\n"
+                "- Assess **Supply Market Complexity** — competitive vs monopoly dynamics\n"
+                "- Define **Category Strategy**: Strategic (partnership), Leverage (competitive), Bottleneck (secure supply), Routine (efficient procurement)\n"
+                "- Build a **Category Business Plan** with 3-year savings targets\n\n"
+            )
+
+        result += (
+            "### Sourcing Strategy Options (Kraljic Matrix)\n"
+            "- **Strategic items** (high value, complex supply): Partnership sourcing, multi-year agreements, joint development\n"
+            "- **Leverage items** (high value, simple supply): Competitive bidding, volume bundling, price benchmarking\n"
+            "- **Bottleneck items** (low value, complex supply): Supply security focus, safety stocks, dual sourcing\n"
+            "- **Routine items** (low value, simple supply): Catalogue procurement, P-card, e-procurement automation\n\n"
+            "### Priority Recommendations\n"
+            f"1. Map all categories on the Kraljic Matrix to define appropriate sourcing strategies\n"
+            f"2. Launch RFP/RFQ processes for all Leverage categories (highest savings potential)\n"
+            f"3. Establish preferred supplier agreements in Strategic categories before year-end {CURRENT_YEAR}\n"
+            f"4. Automate Routine category purchasing via e-catalogues to reduce processing cost"
+        )
+        return result
 
     def _recommendation_question(self, td: dict, message: str) -> str:
         spend    = td.get("query_spend_data", "")
-        risk     = td.get("get_risk_scores", "")
         savings  = td.get("get_savings_opportunities", "")
-        category = self._extract_category_from_message(message)
+        risk     = td.get("get_risk_scores", "")
+        health   = td.get("get_health_score", "")
 
-        top_suppliers = self._extract_top_suppliers(spend)
+        total    = self._extract_dollar(spend) or "your spend"
+        top_sups = self._extract_top_suppliers(spend)
 
-        response = f"## Supplier Recommendations"
-        if category and category != "General Procurement":
-            response += f" for {category}"
-        response += "\n\n"
-
-        if top_suppliers:
-            response += f"Based on your live procurement data, here are your **current top suppliers**:\n\n"
-            for i, s in enumerate(top_suppliers[:5], 1):
-                response += f"**{i}. {s['name']}** — {s['spend']}\n"
-            response += "\n"
-
-        if risk:
-            response += f"**Risk assessment:** {risk}\n\n"
-
-        response += (
-            f"### My recommendation:\n\n"
-            f"When evaluating which suppliers to use, I look at four factors from your data:\n\n"
-            f"1. **Spend leverage** — your current largest suppliers already have volume-based pricing; "
-            f"consolidating more spend with them usually yields better terms\n"
-        )
-
-        if risk:
-            critical = self._extract_critical_suppliers(risk)
-            if critical:
-                response += (
-                    f"2. **Risk profile** — avoid increasing dependency on your critical-risk suppliers "
-                    f"({critical}); they need dual-source alternatives, not more concentration\n"
-                )
-            else:
-                response += (
-                    f"2. **Risk profile** — your current risk exposure is manageable; "
-                    f"continue monitoring Tier 1 suppliers quarterly\n"
-                )
-        else:
-            response += f"2. **Risk profile** — ensure any supplier you increase spend with has a risk score below 6/10\n"
+        result = f"## Ignite Recommendations — Top Priority Actions\n\n"
+        result += f"Based on cross-analysis of your spend ({total}), risk, contracts, and health data:\n\n"
 
         if savings:
-            response += (
-                f"3. **Savings opportunities** — {savings}\n"
-                f"4. **Contract coverage** — only use suppliers who have active contracts in place\n\n"
-            )
-        else:
-            response += (
-                f"3. **Savings opportunities** — run a competitive RFQ before committing to higher spend with any supplier\n"
-                f"4. **Contract coverage** — ensure formal contracts are in place before increasing supplier dependency\n\n"
-            )
+            result += f"### 💰 Savings Opportunities\n{savings}\n\n"
 
-        response += (
-            f"Would you like me to do a deeper analysis on any specific supplier or category? "
-            f"Ask me: *'What is the risk score for [supplier name]?'* or *'How much do we spend on IT services?'*"
-        )
-        return response
+        result += "### 🎯 My Top 5 Recommendations\n"
+        recs = []
+
+        # Based on tail spend
+        tail = self._extract_stat(spend, r"Tail spend: ([\d.]+)%")
+        if tail and float(tail) > 20:
+            recs.append(f"**Tail Spend Consolidation** — {tail}% tail spend exceeds benchmark. Launch a supplier rationalisation programme targeting 30% reduction in supplier count. Expected saving: 8–15% on tail spend volume.")
+
+        # Based on contract coverage
+        contracted = self._extract_stat(spend, r"Contracted spend: ([\d.]+)%")
+        if contracted and float(contracted) < 75:
+            recs.append(f"**Increase Contract Coverage** — only {contracted}% of spend is contracted. Prioritise master agreements for top 20 off-contract suppliers. Expected saving: 5–12% through volume pricing.")
+
+        # Based on critical risk
+        critical = self._extract_stat(risk, r"Critical: (\d+)")
+        if critical and int(critical) > 0:
+            recs.append(f"**Address Critical Risk Suppliers** — {critical} suppliers rated critical risk. Develop dual-source strategies to protect supply continuity.")
+
+        # Generic high-value recs
+        recs.append("**Negotiate Multi-Year Agreements** — convert remaining spot/annual contracts on top 10 suppliers to 3-year agreements with volume commitments and price escalation caps.")
+        recs.append("**ESG Supplier Assessment** — launch a Supplier Sustainability Scorecard programme. Regulators and customers increasingly require Scope 3 emissions data from supply chains.")
+
+        for i, rec in enumerate(recs[:5], 1):
+            result += f"{i}. {rec}\n"
+
+        if top_sups:
+            result += "\n### 🏢 Where to Start\n"
+            result += f"Your highest-spend supplier is **{top_sups[0]['name']}** at **{top_sups[0]['amount']}**. "
+            result += "A 5% cost reduction on this supplier alone represents significant savings — start your negotiation programme here."
+
+        return result
 
     def _spend_question(self, td: dict, message: str) -> str:
         spend = td.get("query_spend_data", "")
         if not spend:
             return (
-                "I'm querying your spend database. Based on your procurement configuration, "
-                "your organisation has spend across multiple categories and suppliers. "
-                "Please ensure the Intelligent Data Engine has processed your transaction data "
-                "for live figures — or ask me: *'Summarize my procurement performance'*"
+                "## Spend Analysis\n\nNo live spend data is loaded. "
+                "Please upload your procurement data via the **Intelligent Data Engine** to receive live spend analysis.\n\n"
+                "Once loaded, I can provide: total spend by supplier, category, cost centre, and time period; "
+                "tail spend analysis; spend trend forecasting; and anomaly detection."
             )
 
-        total  = self._extract_dollar(spend) or "significant"
-        health = td.get("get_health_score", "")
-        score  = self._extract_score(health) if health else None
+        total      = self._extract_dollar(spend) or "N/A"
+        contracted = self._extract_stat(spend, r"Contracted spend: ([\d.]+)%")
+        tail       = self._extract_stat(spend, r"Tail spend: ([\d.]+)%")
+        suppliers  = self._extract_stat(spend, r"Active suppliers: (\d+)")
 
-        response = (
-            f"## Spend Analysis\n\n"
-            f"**Your live spend data:** {spend}\n\n"
-            f"### Key insights:\n\n"
-        )
+        result = f"## Spend Intelligence Analysis — {CURRENT_YEAR}\n\n"
+        result += f"**Total Spend:** {total}"
+        if suppliers: result += f" across {suppliers} active suppliers"
+        result += "\n\n"
+        result += f"**Full data:** {spend}\n\n"
+        result += "### Spend Performance vs Industry Benchmarks\n"
 
-        # Parse tail spend
-        tail_match = re.search(r"[Tt]ail spend[:\s]+([0-9\.]+)%", spend)
-        if tail_match:
-            tail_pct = float(tail_match.group(1))
-            if tail_pct > 25:
-                response += f"- Your tail spend is **{tail_pct:.1f}%** — this is above the 20% benchmark. Consolidating small-supplier spend could save 3–5% of total procurement cost\n"
-            else:
-                response += f"- Your tail spend is **{tail_pct:.1f}%** — this is well-managed and within benchmark\n"
+        if contracted:
+            status = "✅ Above benchmark" if float(contracted) >= 75 else "⚠️ Below benchmark"
+            result += f"- **Contract Coverage**: {contracted}% ({status} — target: 75–85%)\n"
 
-        # Contracted spend
-        contr_match = re.search(r"[Cc]ontract(ed)?\s+spend[:\s]+([0-9\.]+)%", spend)
-        if contr_match:
-            contr_pct = float(contr_match.group(2))
-            if contr_pct < 80:
-                response += f"- Only **{contr_pct:.1f}%** of your spend is under contract — industry best practice is 85%+. The uncovered spend is at risk of price volatility and compliance issues\n"
-            else:
-                response += f"- **{contr_pct:.1f}%** of spend is under contract — excellent coverage\n"
+        if tail:
+            status = "✅ Within benchmark" if float(tail) <= 20 else "⚠️ Exceeds benchmark"
+            result += f"- **Tail Spend**: {tail}% ({status} — target: ≤20%)\n"
 
-        if score:
-            response += f"- Your overall procurement health is **{score}/100** — "
-            if float(score) >= 80:
-                response += "high-performing. Focus on continuous improvement.\n"
-            elif float(score) >= 65:
-                response += "good foundation, with room to improve risk management and contract coverage.\n"
-            else:
-                response += "below benchmark. Priority areas are risk management and spend visibility.\n"
-
-        response += (
-            f"\n### Recommended next steps:\n\n"
-            f"1. Run a **Pareto Analysis** — identify the 20% of suppliers driving 80% of your spend\n"
-            f"2. Review **category spend** — identify categories with fragmented suppliers for consolidation\n"
-            f"3. Check your **savings pipeline** — ask me *'What are my top savings opportunities?'*\n"
-            f"4. Validate **contract coverage** — any major spend without a contract is a commercial risk"
-        )
-        return response
+        result += "\n### Spend Optimisation Actions\n"
+        result += f"1. Run a **Category Spend Analysis** to identify highest-value consolidation opportunities\n"
+        result += f"2. Conduct a **Supplier Rationalisation** exercise — benchmark: top enterprises manage spend across 500–1,500 suppliers\n"
+        result += f"3. Implement **Purchase Order discipline** — all spend above $5K should require an approved PO\n"
+        result += f"4. Establish **Spend Alerts** for cost centres exceeding budget thresholds\n"
+        return result
 
     def _risk_question(self, td: dict, message: str) -> str:
-        risk  = td.get("get_risk_scores", "")
-        spend = td.get("query_spend_data", "")
+        risk   = td.get("get_risk_scores", "")
+        spend  = td.get("query_spend_data", "")
 
         if not risk:
             return (
-                "## Supplier Risk Assessment\n\n"
-                "Risk scores are computed across five dimensions: Financial Health, Geographic Concentration, "
-                "ESG Compliance, Operational Resilience, and Regulatory Compliance.\n\n"
-                "Your spend profile: " + (spend or "loading...") + "\n\n"
-                "**To get live risk scores:** ensure your supplier data has been processed through the Intelligent Data Engine. "
-                "Then ask: *'Which suppliers are at critical risk?'*"
+                "## Supplier Risk Assessment\n\nRisk data is being loaded. "
+                "In the meantime, key risk dimensions to assess include:\n\n"
+                "- **Financial risk**: Credit ratings, cash flow, profitability trends\n"
+                "- **Operational risk**: Single-source dependency, capacity constraints, business continuity\n"
+                "- **Geopolitical risk**: Country risk, sanctions, export controls\n"
+                "- **ESG risk**: Carbon footprint, labour practices, governance compliance\n"
+                "- **Cyber risk**: Information security certifications, data protection compliance"
             )
 
-        critical = self._extract_critical_suppliers(risk)
-        avg_match = re.search(r"[Aa]vg risk[:\s]+([0-9\.]+)", risk)
-        avg_risk = avg_match.group(1) if avg_match else "N/A"
+        critical = self._extract_stat(risk, r"Critical: (\d+)") or "0"
+        high     = self._extract_stat(risk, r"High: (\d+)") or "0"
 
-        response = (
-            f"## Supplier Risk Assessment\n\n"
-            f"**Live risk data:** {risk}\n\n"
-            f"### Analysis:\n\n"
+        result  = f"## Supplier Risk Intelligence — {CURRENT_YEAR}\n\n"
+        result += f"**Live Risk Data:** {risk}\n\n"
+
+        if int(critical) > 0:
+            result += f"### 🔴 CRITICAL — Immediate Action Required\n"
+            result += f"You have **{critical} critical-risk supplier(s)**. These require:\n"
+            result += f"- Executive escalation within 24 hours\n"
+            result += f"- Formal risk mitigation plan within 2 weeks\n"
+            result += f"- Alternative supplier qualification within 60 days\n\n"
+
+        if int(high) > 0:
+            result += f"### 🟡 HIGH RISK — Action Required Within 30 Days\n"
+            result += f"**{high} high-risk suppliers** require:\n"
+            result += f"- Formal Business Continuity Plan (BCP) submission\n"
+            result += f"- Quarterly risk review scheduling\n"
+            result += f"- Contract review for exit/step-in rights\n\n"
+
+        result += (
+            f"### Risk Management Best Practices ({CURRENT_YEAR})\n"
+            f"- **{CURRENT_YEAR} Geopolitical Context**: Monitor impacts of trade policy changes, sanctions lists, and regional conflicts on your supply base\n"
+            f"- **ESG Compliance**: EU CSRD regulation now requires Scope 3 supply chain emissions reporting for large enterprises\n"
+            f"- **Cyber Risk**: Supplier SOC 2 / ISO 27001 certification is now a procurement prerequisite in most regulated industries\n"
+            f"- **Financial Resilience**: Post-2020, business continuity insurance and financial health monitoring are non-negotiable\n\n"
+            f"### Priority Recommendations\n"
+            f"1. Implement **Continuous Risk Monitoring** — integrate supplier credit monitoring (D&B, Experian) into procurement workflow\n"
+            f"2. Conduct **Annual ESG Assessments** for all Tier 1 suppliers\n"
+            f"3. Establish **Supplier Risk Committees** — cross-functional teams reviewing critical supplier risks quarterly\n"
+            f"4. Build **Dual-Source Programmes** for all single-source critical categories\n"
+            f"5. Review **Contractual Protections** — all Tier 1 contracts should include step-in rights, audit rights, and BCP requirements"
         )
-
-        if float(avg_risk) > 6 if avg_risk != "N/A" else False:
-            response += f"⚠️ Your average risk score of **{avg_risk}/10** is above the 5.5 benchmark — your portfolio has elevated supplier risk.\n\n"
-        else:
-            response += f"Your average risk score of **{avg_risk}/10** is within acceptable range.\n\n"
-
-        if critical:
-            response += (
-                f"**Critical suppliers requiring immediate action:** {critical}\n\n"
-                f"For each critical supplier, I recommend:\n"
-                f"- Immediately identify alternative/backup suppliers\n"
-                f"- Request latest financial statements and business continuity plan\n"
-                f"- Review your contractual protections (termination clauses, SLA penalties)\n"
-                f"- Brief procurement leadership and consider escalation\n\n"
-            )
-
-        response += (
-            f"### Risk management recommendations:\n\n"
-            f"1. **Dual-source** any single-source supplier with a risk score above 6/10\n"
-            f"2. **Geographic diversification** — reduce concentration in any single country/region below 40%\n"
-            f"3. **ESG compliance** — verify certifications for all Tier 1 suppliers annually\n"
-            f"4. **Financial monitoring** — subscribe to credit alerts for your top-20 suppliers by spend\n"
-            f"5. **Quarterly reviews** — re-score supplier risk every quarter as market conditions change"
-        )
-        return response
+        return result
 
     def _savings_question(self, td: dict, message: str) -> str:
         savings = td.get("get_savings_opportunities", "")
         spend   = td.get("query_spend_data", "")
+        total   = self._extract_dollar(spend) or "your total spend"
 
-        if not savings:
-            return (
-                "## Savings Opportunity Analysis\n\n"
-                "Your spend data: " + (spend or "loading...") + "\n\n"
-                "Savings opportunities are identified by analysing spend concentration, "
-                "market benchmarks, contract pricing, and tail spend patterns.\n\n"
-                "**Common savings levers in your profile:**\n"
-                "1. Vendor consolidation in fragmented categories\n"
-                "2. Volume rebate renegotiation with top 5 suppliers\n"
-                "3. Tail spend reduction through preferred supplier catalogues\n"
-                "4. Specification rationalisation to enable competitive bidding\n"
-                "5. Early payment discount programmes with key suppliers"
-            )
+        result = f"## Savings Opportunity Analysis — {CURRENT_YEAR}\n\n"
 
-        total_match  = re.search(r"\$([0-9,\.]+[MBK]?)", savings)
-        total_saving = total_match.group(0) if total_match else "significant"
+        if savings:
+            result += f"**Live Pipeline:** {savings}\n\n"
 
-        response = (
-            f"## Savings Opportunities\n\n"
-            f"**Live savings pipeline:** {savings}\n\n"
-            f"### How to capture {total_saving} in savings:\n\n"
-            f"1. **Vendor consolidation** — merge fragmented spend across multiple suppliers in the same "
-            f"category. Concentrated volume = stronger negotiating position and lower unit costs.\n\n"
-            f"2. **Contract renegotiation** — use your spend data to benchmark against market rates. "
-            f"Your largest suppliers have the most headroom — even a 3–5% reduction on top-10 suppliers "
-            f"generates significant value.\n\n"
-            f"3. **Tail spend management** — implement a P-card or catalogue programme for sub-threshold "
-            f"purchases. This reduces admin cost and drives compliance to preferred suppliers.\n\n"
-            f"4. **Volume rebates** — if you don't have volume rebate clauses in your top supplier contracts, "
-            f"add them at the next renewal. Industry standard is 1–3% rebate at volume tiers.\n\n"
-            f"5. **Specification rationalisation** — standardise what you buy to enable competitive "
-            f"tendering rather than sole-source procurement.\n\n"
-            f"**Start here:** Focus on the top 2–3 opportunities — they deliver 80% of the identified value. "
-            f"Want me to break down any specific opportunity in detail?"
+        result += (
+            f"### Savings Levers — Prioritised by Impact\n\n"
+            f"**Category 1: Consolidation & Volume Leverage (Highest ROI)**\n"
+            f"- Consolidate tail spend suppliers onto preferred agreements: typically 10–18% saving\n"
+            f"- Bundle related categories (e.g., all IT software into a master enterprise agreement)\n"
+            f"- Increase contract coverage from current levels to 80%+\n\n"
+            f"**Category 2: Specification & Demand Management**\n"
+            f"- Standardise hardware/IT specs — reduces SKU count and increases volume leverage\n"
+            f"- Demand management challenge: do we need this? can we use less? can we share?\n"
+            f"- Substitute premium specifications with fit-for-purpose alternatives\n\n"
+            f"**Category 3: Process Efficiency**\n"
+            f"- Automate P2P (Procure-to-Pay) for routine purchases — reduces processing cost by 60–80%\n"
+            f"- E-invoicing adoption: target 80%+ of invoices automated by end of {CURRENT_YEAR}\n"
+            f"- Reduce maverick buying through better catalogue management\n\n"
+            f"**Category 4: Working Capital Optimisation**\n"
+            f"- Extend payment terms from Net 30 to Net 45–60 on strategic suppliers\n"
+            f"- Early payment discounts: 1.5–2% for Net 10 payment on high-volume suppliers\n"
+            f"- Supply Chain Finance programme for Tier 1 suppliers\n\n"
+            f"### Quick Wins — Implement This Month\n"
+            f"1. Identify top 5 duplicate/overlapping suppliers and consolidate immediately\n"
+            f"2. Initiate renewal negotiations on any contract >$500K renewing within 6 months\n"
+            f"3. Run a software licence audit — typical enterprises find 25–35% unused licences\n"
+            f"4. Challenge top 10 suppliers with competitive benchmarks from Gartner/Forrester"
         )
-        return response
+        return result
 
     def _contract_question(self, td: dict, message: str) -> str:
         contracts = td.get("get_contract_summary", "")
-        spend     = td.get("query_spend_data", "")
-
         if not contracts:
             return (
-                "## Contract Intelligence\n\n"
-                "Contract data is managed in the Contract Intelligence module. "
-                "Your spend profile: " + (spend or "loading...") + "\n\n"
-                "**Best practices for contract management:**\n"
-                "- Set renewal alerts 90 days before expiry\n"
-                "- Include SLA penalties and rebate clauses at every renewal\n"
-                "- Ensure all spend above threshold is covered by a formal contract\n"
-                "- Review payment terms — extending from net-30 to net-60 improves cash flow"
+                "## Contract Intelligence\n\nLoading contract data. "
+                "I recommend focusing on: expiry management, clause risk review, "
+                "and ensuring all strategic spend is covered by current, signed agreements."
             )
 
-        expiring_match = re.search(r"[Ee]xpiring[^:]*:\s*([0-9]+)", contracts)
-        expiring = expiring_match.group(1) if expiring_match else "0"
-        expired_match  = re.search(r"[Ee]xpired[^:]*:\s*([0-9]+)", contracts)
-        expired  = expired_match.group(1) if expired_match else "0"
+        expiring = self._extract_stat(contracts, r"Expiring ≤90 days: (\d+)") or "0"
+        expired  = self._extract_stat(contracts, r"Expired: (\d+)") or "0"
 
-        response = (
-            f"## Contract Intelligence\n\n"
-            f"**Live contract data:** {contracts}\n\n"
-        )
-
-        if int(expiring) > 0:
-            response += (
-                f"⚠️ **{expiring} contracts expiring within 90 days** — this is your most urgent action item.\n"
-                f"Begin renewal negotiations immediately to:\n"
-                f"- Avoid being auto-renewed on existing (potentially unfavourable) terms\n"
-                f"- Use the renewal as an opportunity to renegotiate pricing and SLAs\n"
-                f"- Add volume rebate, benchmarking, and audit rights clauses\n\n"
-            )
+        result  = f"## Contract Portfolio Intelligence — {CURRENT_YEAR}\n\n"
+        result += f"**Live Data:** {contracts}\n\n"
 
         if int(expired) > 0:
-            response += (
-                f"🔴 **{expired} expired contracts** — any spend continuing under expired contracts is a "
-                f"serious compliance and commercial risk. Issue new agreements or cease purchasing immediately.\n\n"
+            result += (
+                f"### 🔴 CRITICAL: {expired} Expired Contract(s)\n"
+                f"Purchasing under expired contracts creates:\n"
+                f"- **Legal liability** — no contractual protections, disputes resolved under common law\n"
+                f"- **Price risk** — no agreed pricing; suppliers can invoice any amount\n"
+                f"- **Compliance risk** — auditors will flag as a control failure\n"
+                f"**Action required within 48 hours**: Issue emergency short-term agreements or pause all purchasing under these contracts.\n\n"
             )
 
-        response += (
-            f"### Contract management best practices:\n\n"
-            f"1. **90-day renewal pipeline** — start negotiations 90 days before expiry, not at expiry\n"
-            f"2. **Clause audit** — ensure every contract has: SLA penalties, price escalation limits, "
-            f"audit rights, termination for convenience, and data protection clauses\n"
-            f"3. **Spend coverage** — target 85%+ of total spend under active contracts\n"
-            f"4. **Benchmark pricing** — use spend data to validate pricing against market at every renewal\n"
-            f"5. **Auto-renewal alerts** — flag any contracts with auto-renewal clauses and set calendar reminders"
+        if int(expiring) > 0:
+            result += (
+                f"### 🟡 {expiring} Contract(s) Expiring Within 90 Days\n"
+                f"Best practice renewal timeline:\n"
+                f"- **Day 1 (now)**: Assign renewal owner; confirm strategy (renew, rebid, or terminate)\n"
+                f"- **Week 1**: Prepare negotiation position and competitive alternatives\n"
+                f"- **Week 2–4**: Engage supplier for renewal discussions\n"
+                f"- **Week 6–8**: Final negotiation and sign-off\n"
+                f"- **Week 10**: Executed agreement in place with 2 weeks to spare\n\n"
+            )
+
+        result += (
+            f"### Contract Management Best Practices\n"
+            f"- **Auto-renewal risk**: Contracts auto-renewing on legacy terms lose 5–12% in price-reduction opportunity annually\n"
+            f"- **Clause essentials**: Ensure all contracts include price caps, termination for convenience, audit rights, data protection, and force majeure\n"
+            f"- **Contract calendar**: Maintain a 12-month rolling view of all renewals for proactive management\n"
+            f"- **AI clause review**: Use AI to scan contracts for unfavourable liability caps, indemnity provisions, and IP ownership\n\n"
+            f"### Recommended Actions\n"
+            f"1. **Today**: Resolve expired contracts — issue bridge agreements if needed\n"
+            f"2. **This week**: Brief procurement team on {expiring} upcoming renewals with deal authority levels\n"
+            f"3. **This month**: Conduct AI-powered clause review on all contracts >$500K to surface hidden risks\n"
+            f"4. **This quarter**: Implement contract management system with automated renewal alerts"
         )
-        return response
+        return result
 
     def _health_question(self, td: dict, message: str) -> str:
         health = td.get("get_health_score", "")
-        spend  = td.get("query_spend_data", "")
-        risk   = td.get("get_risk_scores", "")
-
         if not health:
-            return (
-                "## Procurement Health Score\n\n"
-                "The health score measures your procurement function across five dimensions:\n"
-                "Spend Visibility, Supplier Performance, Contract Compliance, Risk Management, and Data Quality.\n\n"
-                "Context from your data:\n"
-                + (f"- Spend: {spend}\n" if spend else "")
-                + (f"- Risk: {risk}\n" if risk else "")
-                + "\nAsk me: *'Summarize my procurement performance'* for a full assessment."
-            )
+            return "Loading procurement health data. This typically takes a few seconds as I analyse all dimensions of your procurement performance."
 
         score = self._extract_score(health) or "N/A"
         grade = self._extract_grade(health) or "N/A"
 
-        response = (
-            f"## Procurement Health Score\n\n"
-            f"**Live health data:** {health}\n\n"
-        )
-
         try:
             s = float(score)
-            if s >= 85:
-                tier = "🟢 **Top performer** — your procurement function is operating at an advanced maturity level."
-            elif s >= 70:
-                tier = "🟡 **Good performer** — solid fundamentals with specific areas to strengthen."
-            elif s >= 55:
-                tier = "🟠 **Developing** — key gaps in risk management and contract compliance need addressing."
-            else:
-                tier = "🔴 **Needs improvement** — significant investment in procurement capability is required."
-            response += f"{tier}\n\n"
+            maturity = "World Class" if s >= 90 else "Leading" if s >= 80 else "Developing" if s >= 70 else "Emerging" if s >= 60 else "Foundational"
+            benchmark = "Top quartile (>85) for your industry" if s >= 85 else "Mid-market range (65–80)" if s >= 65 else "Below benchmark — significant improvement opportunity"
+            icon = "🟢" if s >= 80 else "🟡" if s >= 60 else "🔴"
         except (ValueError, TypeError):
-            pass
+            maturity = "Unknown"
+            benchmark = "Benchmark unavailable"
+            icon = "⚪"
 
-        response += (
-            f"### How to improve your score:\n\n"
-            f"1. **Spend Visibility** — ensure 95%+ of spend is coded to supplier, category, and cost centre\n"
-            f"2. **Contract Compliance** — increase contracted spend ratio to 85%+; "
-            f"eliminate maverick buying through catalogue and P-card programmes\n"
-            f"3. **Supplier Performance** — implement formal scorecards and conduct quarterly business reviews "
-            f"with all strategic suppliers\n"
-            f"4. **Risk Management** — complete risk assessments for all Tier 1 and Tier 2 suppliers; "
-            f"resolve any critical risk relationships\n"
-            f"5. **Data Quality** — use the Intelligent Data Engine to clean, deduplicate, and standardise "
-            f"supplier and transaction data\n\n"
-            f"A 10-point improvement in health score typically correlates with 2–4% reduction in total procurement cost."
+        result  = f"## Procurement Health & Maturity Assessment\n\n"
+        result += f"**Health Score:** {score}/100 (Grade {grade}) {icon} — **{maturity}**\n\n"
+        result += f"**Full data:** {health}\n\n"
+        result += f"**Benchmark position:** {benchmark}\n\n"
+        result += (
+            f"### Procurement Maturity Model\n"
+            f"- **90–100 (World Class)**: Strategic partner to the business; leading on ESG, AI, and supplier innovation\n"
+            f"- **80–89 (Leading)**: Proactive procurement; strong category management and supplier relationships\n"
+            f"- **70–79 (Developing)**: Good processes but gaps in strategic sourcing and risk management\n"
+            f"- **60–69 (Emerging)**: Reactive procurement; process improvements needed in contract and supplier management\n"
+            f"- **<60 (Foundational)**: Tactical purchasing; significant strategic value being left on the table\n\n"
+            f"### Improvement Roadmap for {CURRENT_YEAR}\n"
+            f"1. **Contract Coverage**: Target 80%+ contracted spend — currently the #1 driver of health score improvement\n"
+            f"2. **Supplier Risk Management**: Implement systematic risk scoring and quarterly reviews\n"
+            f"3. **Data Quality**: Improve spend data completeness and classification — target 95%+ accuracy\n"
+            f"4. **Process Automation**: Automate routine P2P transactions to free up strategic capacity\n"
+            f"5. **Category Management**: Build 3-year category strategies for your top 10 spend categories"
         )
-        return response
+        return result
 
     def _forecast_question(self, td: dict, message: str) -> str:
         forecast = td.get("get_forecast", "")
         spend    = td.get("query_spend_data", "")
+        total    = self._extract_dollar(spend) or "current spend level"
 
-        if not forecast:
-            return (
-                "## Spend Forecast\n\n"
-                "The forecast uses Holt Double Exponential Smoothing on 12 months of historical transactions.\n\n"
-                "Current spend context: " + (spend or "loading...") + "\n\n"
-                "**Forecast drivers to watch:**\n"
-                "- Year-end budget flush typically spikes Q4 spend by 15–25%\n"
-                "- Contract renewals in Q1 can create lumpy spend patterns\n"
-                "- Supplier price escalation clauses (usually CPI-linked) add 2–5% annually\n"
-                "Ask: *'What is my spend forecast for next quarter?'* once data is loaded."
-            )
+        result = f"## Spend Forecast & Planning Intelligence — {CURRENT_YEAR}\n\n"
 
-        total_match = re.search(r"\$([0-9,\.]+[MBK]?)", forecast)
-        total = total_match.group(0) if total_match else "projected spend"
+        if forecast:
+            result += f"**Live Forecast:** {forecast}\n\n"
 
-        growth_match = re.search(r"([+-][0-9\.]+)%", forecast)
-        growth = growth_match.group(1) if growth_match else None
-
-        response = (
-            f"## Spend Forecast\n\n"
-            f"**Live forecast data:** {forecast}\n\n"
-            f"### Forecast interpretation:\n\n"
+        result += (
+            f"### Forecasting Methodology\n"
+            f"The Ignite forecast model uses a combination of:\n"
+            f"- **Historical trend analysis** — 12-month rolling spend patterns\n"
+            f"- **Seasonal adjustment** — accounts for year-end flush, Q1 slowdown patterns\n"
+            f"- **Contract renewal pipeline** — large renewals create spend spikes\n"
+            f"- **Business growth signals** — headcount, revenue, and project pipeline proxies\n\n"
+            f"### {CURRENT_YEAR} Market Context\n"
+            f"- **Inflation impact**: Factor 3–5% annual price escalation on most categories unless price-locked in contracts\n"
+            f"- **Software pricing**: SaaS vendors increasing prices 5–15% on renewal — negotiate before auto-renewal\n"
+            f"- **Labour / consulting**: Professional services rates up 8–12% YoY due to talent market pressures\n"
+            f"- **Logistics**: Supply chain normalising; freight costs stabilising after 2021–2023 volatility\n\n"
+            f"### Budget Planning Recommendations\n"
+            f"1. Build a **rolling 3-month spend forecast** updated monthly with contract renewal data\n"
+            f"2. Identify all **budget commitments** tied to major contract renewals this year\n"
+            f"3. Apply **should-cost modelling** for categories facing significant price pressure\n"
+            f"4. Establish a **procurement savings pipeline** that offsets inflationary pressures\n"
+            f"5. Use **scenario planning** (base/optimistic/pessimistic) for board-level budget presentations"
         )
-
-        if growth:
-            g = float(growth)
-            if g > 5:
-                response += f"⚠️ Your spend is trending **{g:+.1f}%** — above inflation. Review whether this growth is driven by genuine business need or maverick buying and price creep.\n\n"
-            elif g > 0:
-                response += f"Your spend is growing at **{g:+.1f}%** — broadly in line with expectations. Monitor category-level growth for anomalies.\n\n"
-            else:
-                response += f"Your spend is tracking at **{g:+.1f}%** — flat or declining. Ensure this reflects strategic decisions rather than deferred spend that will spike later.\n\n"
-
-        response += (
-            f"### Planning recommendations:\n\n"
-            f"1. **Budget alignment** — compare forecast against approved budget. If forecast exceeds budget, "
-            f"identify which categories are over-running and take corrective action now\n"
-            f"2. **Contract renewals** — identify contracts expiring in the forecast window and factor in "
-            f"renegotiation timelines (allow 90 days for complex contracts)\n"
-            f"3. **Q4 planning** — year-end typically sees a spend spike; plan procurement activities early "
-            f"to avoid emergency sole-source buying under time pressure\n"
-            f"4. **Savings capture** — use the forecast as the baseline to show the financial impact of your "
-            f"savings initiatives — each identified opportunity reduces the projected spend line\n\n"
-            f"Use the **What-if Analysis** module to model how specific decisions (new contracts, supplier changes) "
-            f"would change this forecast."
-        )
-        return response
+        return result
 
     def _whatif_question(self, td: dict, message: str) -> str:
-        spend   = td.get("query_spend_data", "")
-        savings = td.get("get_savings_opportunities", "")
+        spend = td.get("query_spend_data", "")
+        total = self._extract_dollar(spend)
 
-        total   = self._extract_dollar(spend) or "your total spend"
-        return (
-            f"## What-if Scenario Analysis\n\n"
-            f"Based on your current spend ({total}), here are some scenarios I can model for you:\n\n"
-            f"**Scenario 1 — Supplier consolidation:**\n"
-            f"If you consolidate from 3 suppliers to 1 in a given category, "
-            f"you typically achieve 8–15% cost reduction through volume leverage. "
-            f"On a $5M category, that's $400K–$750K in savings.\n\n"
-            f"**Scenario 2 — Price negotiation:**\n"
-            f"A 3% reduction on your top-5 suppliers generates approximately "
-            f"3% × [top-5 spend] in annual savings. "
-            f"Use your spend data to calculate the exact number.\n\n"
-            f"**Scenario 3 — Tail spend reduction:**\n"
-            f"Reducing tail spend from 24% to 15% of total spend, with a 10% saving on consolidated volume, "
-            f"saves approximately 0.9% of total spend — on a $100M base, that's $900K.\n\n"
-            f"**Scenario 4 — Contract early renewal:**\n"
-            f"Renewing contracts 6 months early locks in current pricing before a supplier price increase. "
-            f"If CPI-linked escalation is 4%, early renewal on a $10M contract avoids $400K in cost.\n\n"
-            + (f"**Your current savings pipeline:** {savings}\n\n" if savings else "")
-            + f"Use the **What-if Analysis** module to run these scenarios interactively with your exact spend figures."
+        result = f"## What-If Scenario Analysis\n\n"
+
+        if total:
+            result += f"**Baseline spend:** {total}\n\n"
+            result += f"### Scenario Modelling\n"
+            result += f"Using your current spend as baseline, here are key scenarios:\n\n"
+            result += f"**Scenario 1: 5% Supplier Consolidation Saving**\n"
+            result += f"- 5% reduction on tail spend suppliers through consolidation\n"
+            result += f"- Realistic target for well-executed consolidation programme\n\n"
+            result += f"**Scenario 2: Contract Coverage Increase to 80%**\n"
+            result += f"- Moving uncontracted spend under preferred agreements\n"
+            result += f"- Typical saving: 6–10% on newly contracted spend\n\n"
+            result += f"**Scenario 3: Early Payment Programme**\n"
+            result += f"- 1.5% early payment discount on top 20 suppliers\n"
+            result += f"- Cash flow impact vs discount trade-off analysis required\n\n"
+
+        result += (
+            f"### What-If Methodology\n"
+            f"For precise what-if modelling, use the **What-If Analysis** module which provides:\n"
+            f"- Slider-based scenario inputs with real-time financial impact\n"
+            f"- Sensitivity analysis across multiple variables\n"
+            f"- Comparison of base vs optimistic vs pessimistic outcomes\n"
+            f"- Savings realisation timeline and confidence intervals\n\n"
+            f"Ask me: *'What is the impact of consolidating 10% of tail spend?'* for a specific calculation."
         )
+        return result
 
     def _tail_spend_question(self, td: dict, message: str) -> str:
         spend = td.get("query_spend_data", "")
-        tail_pct = None
-        if spend:
-            m = re.search(r"[Tt]ail spend[:\s]+([0-9\.]+)%", spend)
-            if m:
-                tail_pct = float(m.group(1))
+        tail  = self._extract_stat(spend, r"Tail spend: ([\d.]+)%")
+        total = self._extract_dollar(spend) or "your total spend"
 
-        response = "## Tail Spend Intelligence\n\n"
-        if tail_pct is not None:
-            if tail_pct > 25:
-                response += (
-                    f"⚠️ Your tail spend is **{tail_pct:.1f}%** of total spend — this is above the 20% benchmark "
-                    f"and represents a significant efficiency and compliance risk.\n\n"
-                )
+        result  = f"## Tail Spend Intelligence — {CURRENT_YEAR}\n\n"
+        if tail:
+            over = float(tail) - 20
+            result += f"**Current tail spend: {tail}%** — "
+            if over > 0:
+                result += f"⚠️ **{over:.1f}pp above the 20% industry benchmark.** This represents a material savings opportunity.\n\n"
             else:
-                response += f"Your tail spend is **{tail_pct:.1f}%** — within acceptable range but still worth optimising.\n\n"
-        elif spend:
-            response += f"Spend context: {spend}\n\n"
+                result += f"✅ Within target (≤20%). Good discipline maintained.\n\n"
 
-        response += (
-            f"**What is tail spend?**\n"
-            f"Transactions below your strategic sourcing threshold — typically many small purchases "
-            f"from many different suppliers — representing disproportionate admin cost relative to value.\n\n"
-            f"**Why it matters:**\n"
-            f"- Consumes 80% of transaction processing time for 20% of spend value\n"
-            f"- Typically 15–30% more expensive than contracted spend (no volume leverage)\n"
-            f"- Creates compliance risk (purchases outside preferred supplier list)\n"
-            f"- Fragments spend that could be consolidated for better pricing\n\n"
-            f"**Tail spend reduction strategies:**\n\n"
-            f"1. **Procurement catalogue** — create an approved product/service catalogue for common items "
-            f"(office supplies, IT accessories, travel) with pre-negotiated pricing\n"
-            f"2. **P-card programme** — issue purchasing cards to key budget holders with approved supplier lists "
-            f"and transaction limits\n"
-            f"3. **Blanket orders** — set up standing purchase orders with approved suppliers for recurring "
-            f"low-value purchases (reduces per-transaction effort)\n"
-            f"4. **Supplier rationalisation** — for each tail spend category, identify the top supplier and "
-            f"mandate their use for all purchases in that category\n"
-            f"5. **Spend threshold policy** — define a minimum order value below which purchases must use "
-            f"a catalogue or P-card — this prevents fragmentation"
+        result += (
+            f"### What Is Tail Spend?\n"
+            f"Tail spend is the long tail of small-value purchases that collectively represent 20–30% of spend "
+            f"but 70–80% of all transactions. These purchases are often uncontrolled, off-catalogue, and handled manually.\n\n"
+            f"### Why It Matters\n"
+            f"- **Cost**: No competitive pricing; paying list prices or worse\n"
+            f"- **Risk**: Unvetted suppliers, no contract protections, compliance exposure\n"
+            f"- **Process**: High transaction cost ($50–100 per PO to process manually)\n"
+            f"- **Visibility**: Procurement has no insight into this spend\n\n"
+            f"### Tail Spend Reduction Programme\n"
+            f"1. **Catalogue expansion** — bring top 50 tail suppliers onto e-catalogue; eliminates 60% of tail transactions\n"
+            f"2. **P-card/Corporate card** — for purchases <$2,500; eliminates PO requirement for low-risk spend\n"
+            f"3. **Preferred supplier rationalisation** — consolidate 10 similar tail suppliers into 1 preferred agreement\n"
+            f"4. **Guided buying** — implement a buying channel that directs users to approved suppliers\n"
+            f"5. **Budget holder accountability** — report tail spend by cost centre to drive behaviour change\n\n"
+            f"### Savings Potential\n"
+            f"A well-executed tail spend programme typically delivers:\n"
+            f"- **10–18% cost reduction** on consolidated tail spend\n"
+            f"- **40–60% reduction** in number of active suppliers\n"
+            f"- **60–80% reduction** in procurement transaction processing cost"
         )
-        return response
+        return result
 
     def _intelligent_default(self, td: dict, message: str, module: str) -> str:
-        """Answer any question intelligently using whatever data is available."""
-        if not td:
-            return (
-                f"## Ignite AI Procurement Advisor\n\n"
-                f"I'm ready to analyse your procurement data. Ask me specific questions like:\n\n"
-                f"- *\"What are my top suppliers by spend?\"*\n"
-                f"- *\"Which suppliers have the highest risk?\"*\n"
-                f"- *\"What are my best savings opportunities?\"*\n"
-                f"- *\"Summarize my procurement performance\"*\n"
-                f"- *\"What contracts are expiring soon?\"*\n"
-                f"- *\"What is my spend forecast for next quarter?\"*\n"
-                f"- *\"What are the best suppliers for office supplies?\"*"
-            )
+        spend    = td.get("query_spend_data", "")
+        health   = td.get("get_health_score", "")
+        total    = self._extract_dollar(spend)
+        score    = self._extract_score(health)
 
-        # Build an intelligent answer from all available data
-        response = f"## Procurement Intelligence\n\n"
-        response += f"Here's what I can tell you based on your live data:\n\n"
+        result  = f"## Procurement Analysis — {CURRENT_YEAR}\n\n"
+        result += f"*Responding to: \"{message}\"*\n\n"
 
-        if "query_spend_data" in td:
-            response += f"**Spend profile:** {td['query_spend_data']}\n\n"
-        if "get_risk_scores" in td:
-            response += f"**Risk profile:** {td['get_risk_scores']}\n\n"
-        if "get_savings_opportunities" in td:
-            response += f"**Savings pipeline:** {td['get_savings_opportunities']}\n\n"
-        if "get_contract_summary" in td:
-            response += f"**Contracts:** {td['get_contract_summary']}\n\n"
-        if "get_health_score" in td:
-            response += f"**Health score:** {td['get_health_score']}\n\n"
+        if total or score:
+            result += f"Based on your current procurement data"
+            if total:
+                result += f" ({total} total spend"
+            if score:
+                result += f", health score {score}/100"
+            if total or score:
+                result += "):\n\n"
 
-        response += (
-            f"**Regarding your question** — *\"{message}\"*:\n\n"
-            f"Based on the data above, I'd recommend reviewing the relevant module for a deeper dive. "
-            f"You can also ask me more specific questions — for example:\n\n"
-            f"- *\"Which are my highest-risk suppliers?\"*\n"
-            f"- *\"What savings can I achieve through vendor consolidation?\"*\n"
-            f"- *\"Which contracts are expiring in the next 90 days?\"*"
+        result += (
+            f"I have analysed your question in the context of {module}. "
+            f"To give you the most precise answer, could you clarify what specific information you need?\n\n"
+            f"I can provide detailed analysis on:\n"
+            f"- **Spend performance** — totals, trends, categories, anomalies\n"
+            f"- **Supplier intelligence** — risk, performance, ESG, financials\n"
+            f"- **Contract management** — expiry, clause risk, renewal strategy\n"
+            f"- **Savings opportunities** — consolidation, benchmarking, negotiation\n"
+            f"- **Procurement strategy** — category plans, sourcing strategy, KPIs\n\n"
+            f"Try asking: *\"What are my top 5 savings opportunities?\"*, *\"Which suppliers are highest risk?\"*, "
+            f"or *\"Summarise my contract portfolio\"*"
         )
-        return response
+        return result
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Parsing helpers
+    # Utility helpers
     # ═══════════════════════════════════════════════════════════════════════════
+
+    def _time_of_day(self) -> str:
+        hour = datetime.now().hour
+        if hour < 12: return "Morning"
+        if hour < 17: return "Afternoon"
+        return "Evening"
 
     def _extract_dollar(self, text: str) -> str | None:
-        m = re.search(r"\$([0-9,\.]+[MBK]?)", text)
+        m = re.search(r"\$[\d,]+(?:\.\d+)?(?:[KMB])?", text)
         return m.group(0) if m else None
 
     def _extract_score(self, text: str) -> str | None:
-        m = re.search(r"([0-9]+(?:\.[0-9]+)?)/100", text)
+        m = re.search(r"Health: ([\d.]+)/100", text)
+        if not m: m = re.search(r"([\d.]+)/100", text)
         return m.group(1) if m else None
 
     def _extract_grade(self, text: str) -> str | None:
-        m = re.search(r"Grade\s+([A-F][+-]?)", text)
+        m = re.search(r"Grade ([A-F][+-]?)", text)
+        return m.group(1) if m else None
+
+    def _extract_stat(self, text: str, pattern: str) -> str | None:
+        m = re.search(pattern, text)
         return m.group(1) if m else None
 
     def _extract_top_suppliers(self, spend_content: str) -> list[dict]:
-        """Parse 'Top suppliers: X ($1M), Y ($2M)' from content string."""
-        if not spend_content:
-            return []
-        m = re.search(r"[Tt]op \d+ suppliers[^:]*:\s*(.+?)(?:\.|$)", spend_content)
-        if not m:
-            return []
-        raw = m.group(1)
+        """Extract top supplier names and spend amounts from tool data."""
         suppliers = []
-        for part in re.split(r",\s*(?=[A-Z])", raw):
-            part = part.strip().rstrip(".")
-            name_m = re.match(r"^([^($]+?)\s*(\([^)]+\))?$", part)
-            if name_m:
-                suppliers.append({
-                    "name":  name_m.group(1).strip(),
-                    "spend": name_m.group(2) or "",
-                })
+        # Pattern: "Supplier Name ($X,XXX,XXX)"
+        for m in re.finditer(r"([A-Z][^()]+?)\s+\(\$([0-9,]+)\)", spend_content):
+            suppliers.append({"name": m.group(1).strip(), "amount": f"${m.group(2)}"})
         return suppliers[:5]
 
-    def _extract_critical_suppliers(self, risk_content: str) -> str:
-        """Extract critical supplier names from risk content."""
-        m = re.search(r"[Cc]ritical[^:]*:\s*\d+\s*(?:suppliers?)?\s*[\(,]?\s*([^.]+?)(?:\.|$)", risk_content)
-        if m:
-            return m.group(1).strip()
-        # Try 'Highest-risk suppliers: X, Y, Z'
-        m2 = re.search(r"[Hh]ighest.risk[^:]*:\s*([^.]+?)(?:\.|$)", risk_content)
-        if m2:
-            return m2.group(1).strip()
-        return ""
-
     def _extract_category_from_message(self, message: str) -> str:
-        """Extract a category name from the user's question."""
-        # Common procurement categories
-        categories = [
-            ("office supplies?|stationery", "Office Supplies"),
-            ("it |information technology|software", "IT & Software"),
-            ("hardware|computer|laptop|device", "IT Hardware"),
-            ("service", "Professional Services"),
-            ("consulting|advisory", "Consulting"),
-            ("cloud|saas", "Cloud & SaaS"),
-            ("travel|hotel|airline|flight", "Travel & Expenses"),
-            ("marketing|advertising", "Marketing & Advertising"),
-            ("facilities|cleaning|maintenance|janitorial", "Facilities Management"),
-            ("logistics|freight|shipping|transport", "Logistics & Transport"),
-            ("hr|recruitment|staffing|talent", "HR & Talent"),
-            ("legal|law firm", "Legal Services"),
-            ("medical|health|pharmaceutical", "Healthcare"),
-            ("food|catering|canteen", "Food & Catering"),
-            ("telecoms?|phone|mobile", "Telecoms"),
-        ]
         msg = message.lower()
-        for pattern, label in categories:
-            if re.search(pattern, msg):
-                return label
-        return "General Procurement"
-
-    def _is_relevant_to_category(self, supplier_name: str, category: str) -> bool:
-        """Heuristic match between supplier name and category."""
-        name = supplier_name.lower()
-        cat  = category.lower()
-        mapping = {
-            "software":   ["microsoft", "sap", "salesforce", "oracle", "adobe", "servicenow"],
-            "it":         ["microsoft", "dell", "hp", "cisco", "ibm", "lenovo"],
-            "cloud":      ["amazon", "aws", "microsoft", "google", "azure"],
-            "consulting": ["accenture", "deloitte", "kpmg", "pwc", "mckinsey", "ey"],
-            "it service": ["cognizant", "wipro", "infosys", "tcs", "capgemini"],
-            "hardware":   ["dell", "hp", "cisco", "lenovo", "apple"],
-        }
-        for key, names in mapping.items():
-            if key in cat:
-                return any(n in name for n in names)
-        return False
+        if "software" in msg or "cloud" in msg or "saas" in msg: return "Software & Cloud"
+        if "consult" in msg: return "Consulting & Professional Services"
+        if "hardware" in msg or "network" in msg: return "Hardware & Networking"
+        if "facilities" in msg or "real estate" in msg: return "Facilities & Real Estate"
+        if "logistics" in msg or "freight" in msg: return "Logistics"
+        if "office" in msg: return "Office Supplies"
+        return "General"

@@ -194,7 +194,7 @@ function CurrencyTab({ settings }: { settings: Record<string, Record<string, str
             <TextField fullWidth size="small" label="Fiscal Year Label" value={fval('fiscal_year_label')} onChange={e => setFiscForm(p => ({ ...p, fiscal_year_label: e.target.value }))} placeholder="e.g. FY" />
           </Grid>
           <Grid item xs={12} sm={4}>
-            <TextField fullWidth size="small" label="Current Fiscal Year" value={fval('current_fiscal_year')} onChange={e => setFiscForm(p => ({ ...p, current_fiscal_year: e.target.value }))} placeholder="2024" />
+            <TextField fullWidth size="small" label="Current Fiscal Year" value={fval('current_fiscal_year')} onChange={e => setFiscForm(p => ({ ...p, current_fiscal_year: e.target.value }))} placeholder={String(new Date().getFullYear())} />
           </Grid>
         </Grid>
         {fiscOk && <Alert severity="success" sx={{ mt: 2 }}>Fiscal year settings saved.</Alert>}

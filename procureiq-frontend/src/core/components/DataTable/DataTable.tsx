@@ -34,6 +34,7 @@ interface DataTableProps<T extends Record<string, unknown>> {
   onExport?: () => void;
   stickyHeader?: boolean;
   maxHeight?: number | string;
+  onRowClick?: (row: T) => void;
 }
 
 type Order = 'asc' | 'desc';
@@ -41,7 +42,7 @@ type Order = 'asc' | 'desc';
 export default function DataTable<T extends Record<string, unknown>>({
   title, columns, rows, total, page = 0, pageSize = 50,
   onPageChange, onPageSizeChange, loading, onSearch, searchPlaceholder = 'Search…',
-  rowKey, actions, onExport, stickyHeader = true, maxHeight = 520,
+  rowKey, actions, onExport, stickyHeader = true, maxHeight = 520, onRowClick,
 }: DataTableProps<T>) {
   const [orderBy, setOrderBy] = useState<string>('');
   const [order, setOrder]     = useState<Order>('asc');
@@ -140,7 +141,8 @@ export default function DataTable<T extends Record<string, unknown>>({
                   <TableRow
                     key={String(row[rowKey])}
                     hover
-                    sx={{ '&:hover': { bgcolor: '#f0f4ff' }, cursor: 'default' }}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    sx={{ '&:hover': { bgcolor: '#f0f4ff' }, cursor: onRowClick ? 'pointer' : 'default' }}
                   >
                     {columns.map(col => (
                       <TableCell

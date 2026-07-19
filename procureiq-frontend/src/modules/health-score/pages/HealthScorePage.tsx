@@ -300,7 +300,7 @@ export default function HealthScorePage() {
         {/* Trend Chart */}
         <Grid item xs={12} md={4}>
           <Box sx={{ bgcolor: '#fff', border: `1px solid ${IBM.border}`, borderRadius: 1, p: 2.5, height: '100%' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>Score Trend — 2024</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 1 }}>Score Trend — {new Date().getFullYear()}</Typography>
             <Typography sx={{ fontSize: 11, color: IBM.muted, mb: 2 }}>Monthly composite score history</Typography>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>

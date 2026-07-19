@@ -22,9 +22,10 @@ const MODULE_OPTIONS = [
 ];
 
 export default function ExecutiveReportingPage() {
-  const [title, setTitle]               = useState('Executive Procurement Report — FY 2024');
-  const [periodStart, setPeriodStart]   = useState('2024-01-01');
-  const [periodEnd, setPeriodEnd]       = useState('2024-12-31');
+  const CY = new Date().getFullYear();
+  const [title, setTitle]               = useState(`Executive Procurement Report — FY ${CY}`);
+  const [periodStart, setPeriodStart]   = useState(`${CY}-01-01`);
+  const [periodEnd, setPeriodEnd]       = useState(`${CY}-12-31`);
   const [selectedModules, setModules]   = useState(MODULE_OPTIONS.map(m => m.key));
   const [customNotes, setNotes]         = useState('');
   const [loading, setLoading]           = useState(false);
