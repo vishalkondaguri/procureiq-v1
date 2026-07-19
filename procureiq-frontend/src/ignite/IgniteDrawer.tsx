@@ -20,7 +20,8 @@ const SUGGESTED = [
   'What savings opportunities exist?',
   'Which contracts are expiring soon?',
   'What is my tail spend percentage?',
-  'Compare supplier performance this quarter',
+  'Tell me about IBM as a supplier',
+  'Explain what procurement is',
   'Identify any procurement anomalies',
 ];
 
@@ -196,9 +197,12 @@ export default function IgniteDrawer({ open, onClose, moduleContext }: IgniteDra
 
       {/* Capability chips */}
       <Box sx={{ px: 2.5, py: 1, bgcolor: '#1c1c1c', borderBottom: '1px solid #393939', display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-        {['Spend Analysis', 'Contract Intel', 'Risk Assessment', 'Savings Opps', 'Supplier 360'].map(cap => (
+        {['Spend Analysis', 'Contract Intel', 'Risk Assessment', 'Savings Opps', 'Supplier 360', 'Wikipedia', 'Forecasting'].map(cap => (
           <Chip key={cap} label={cap} size="small"
-            sx={{ fontSize: 10, height: 20, bgcolor: '#262626', color: '#a6c8ff', border: '1px solid #393939' }} />
+            sx={{
+              fontSize: 10, height: 20, bgcolor: '#262626', color: cap === 'Wikipedia' ? '#78a9ff' : '#a6c8ff',
+              border: `1px solid ${cap === 'Wikipedia' ? '#4589ff' : '#393939'}`,
+            }} />
         ))}
       </Box>
 

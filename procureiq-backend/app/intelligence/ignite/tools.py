@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import re
+import urllib.parse
 
 
 @dataclass
@@ -62,6 +63,17 @@ IGNITE_TOOLS: list[IgniteTool] = [
         ],
     ),
     IgniteTool(
+        name="wiki_search",
+        description="Wikipedia summary for a company, technology, or procurement topic",
+        trigger_patterns=[
+            r"what is\b", r"who is\b", r"tell me about\b", r"explain\b",
+            r"history of\b", r"background on\b", r"about (the )?company\b",
+            r"founded\b", r"headquarter", r"ceo\b", r"cpo\b",
+            r"wikipedia\b", r"wiki\b", r"overview of\b",
+            r"(ibm|sap|oracle|microsoft|accenture|infosys|tcs|wipro|capgemini)\b",
+        ],
+    ),
+    IgniteTool(
         name="get_health_score",
         description="Procurement health score and dimension breakdown",
         trigger_patterns=[
@@ -91,6 +103,10 @@ async def dispatch_tool(tool_name: str, message: str, db=None, tenant_id: str = 
             pass  # fall through to mock
 
     # Deterministic mock responses (when no DB connection)
+    # ── Wikipedia live fetch (no API key needed) ──────────────────────────
+    if tool_name == "wiki_search":
+        return await _wiki_fetch(message)
+
     MOCKS: dict[str, dict] = {
         "query_spend_data": {
             "tool": "query_spend_data", "label": "Spend Data",
@@ -238,4 +254,72 @@ async def _live_dispatch(tool_name: str, db, tenant_id: str) -> dict:
             ),
         }
 
+    if tool_name == "wiki_search":
+        return await _wiki_fetch(message)
+
     raise ValueError(f"Unknown tool: {tool_name}")
+
+
+async def _wiki_fetch(query: str) -> dict:
+    """Fetch a Wikipedia summary for the most relevant entity in the query."""
+    import httpx
+    NA = "Information not available from public sources."
+
+    # Extract the most likely entity to search (strip common filler words)
+    # Keep the raw query and let Wikipedia search figure it out
+    search_q = re.sub(
+        r"\b(what is|who is|tell me about|explain|describe|wikipedia|about|the|a|an|overview of)\b",
+        " ", query, flags=re.IGNORECASE
+    ).strip()
+    if not search_q:
+        search_q = query
+
+    # 1. Use Wikipedia search API to find the best page title
+    search_url = (
+        "https://en.wikipedia.org/w/api.php"
+        f"?action=query&list=search&srsearch={urllib.parse.quote(search_q)}"
+        "&srlimit=1&format=json"
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(search_url, headers={"User-Agent": "ProcureIQ/1.0 (procurement AI)"})
+            r.raise_for_status()
+            results = r.json().get("query", {}).get("search", [])
+            if not results:
+                return {
+                    "tool": "wiki_search", "label": "Wikipedia",
+                    "content": f"No Wikipedia article found for '{search_q}'.",
+                }
+            title = results[0]["title"]
+
+            # 2. Fetch the REST summary for that page
+            summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(title)}"
+            sr = await client.get(summary_url, headers={"User-Agent": "ProcureIQ/1.0"})
+            sr.raise_for_status()
+            data = sr.json()
+
+            extract  = data.get("extract", NA)
+            page_url = data.get("content_urls", {}).get("desktop", {}).get("page", "")
+            desc     = data.get("description", "")
+
+            # Trim to a useful length
+            if len(extract) > 800:
+                extract = extract[:797] + "…"
+
+            content = f"Wikipedia — {title}: {extract}"
+            if desc:
+                content = f"[{desc}] {content}"
+            if page_url:
+                content += f" Source: {page_url}"
+
+            return {
+                "tool": "wiki_search",
+                "label": f"Wikipedia: {title}",
+                "content": content,
+            }
+    except Exception as exc:
+        return {
+            "tool": "wiki_search", "label": "Wikipedia",
+            "content": f"Wikipedia lookup failed for '{search_q}': {exc}",
+        }

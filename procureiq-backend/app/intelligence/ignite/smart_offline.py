@@ -84,6 +84,10 @@ class SmartOfflineEngine:
         if re.search(r"\b(what if|scenario|simulat|if we|impact of|hypothetical)\b", msg):
             return self._whatif_question(td, message)
 
+        # ── Wikipedia lookup ──────────────────────────────────────────────────
+        if re.search(r"\b(what is|who is|tell me about|explain|history of|founded|headquarter|ceo|cpo|wikipedia|wiki|overview of)\b", msg) or "wiki_search" in td:
+            return self._wiki_response(td, message)
+
         # ── Tail spend ────────────────────────────────────────────────────────
         if re.search(r"\b(tail spend|maverick|fragmented|small purchas|p.card|catalogue|rogue spend|off.contract)\b", msg):
             return self._tail_spend_question(td, message)
@@ -813,6 +817,53 @@ class SmartOfflineEngine:
             f"- **40–60% reduction** in number of active suppliers\n"
             f"- **60–80% reduction** in procurement transaction processing cost"
         )
+        return result
+
+    def _wiki_response(self, td: dict, message: str) -> str:
+        wiki = td.get("wiki_search", "")
+        spend = td.get("query_spend_data", "")
+
+        if wiki and "failed" not in wiki and "No Wikipedia article" not in wiki:
+            result = f"## Wikipedia Knowledge — Ignite Research\n\n{wiki}\n\n"
+
+            # If this seems to be about a supplier, add procurement context
+            if spend and any(
+                kw in message.lower()
+                for kw in ["supplier", "vendor", "company", "firm", "ibm", "sap", "oracle",
+                            "microsoft", "accenture", "infosys", "tcs", "wipro", "capgemini"]
+            ):
+                result += (
+                    f"---\n\n**Procurement Context** *(from live data)*\n\n{spend}\n\n"
+                    f"**Ignite Note:** When evaluating this supplier in your procurement context, consider: "
+                    f"financial stability, delivery performance, ESG compliance, contract terms, and strategic fit. "
+                    f"Use the Supplier 360 module for a full intelligence profile including risk scores and spend analytics."
+                )
+            return result
+
+        # Fallback: give a researched response based on the message
+        result = f"## Research Query — {CURRENT_YEAR}\n\n"
+        result += f"*Query: \"{message}\"*\n\n"
+        result += (
+            "I was unable to retrieve Wikipedia content for this query. "
+            "Here is what I can tell you based on procurement domain knowledge:\n\n"
+        )
+
+        msg = message.lower()
+        if "procurement" in msg or "source" in msg:
+            result += (
+                "**Procurement** is the business process of identifying, acquiring, and managing goods, "
+                "services, and works from external sources. Modern procurement encompasses strategic sourcing, "
+                "supplier relationship management, contract management, and spend analytics.\n\n"
+                "**Key frameworks:** CIPS (Chartered Institute of Procurement & Supply), ISM, and IBM's "
+                "procurement transformation methodology focus on: spend visibility → supplier consolidation → "
+                "contract compliance → total cost optimisation."
+            )
+        else:
+            result += (
+                "For detailed information, I recommend checking Wikipedia directly, or asking me a more "
+                "specific procurement-related question. I can provide expert analysis on suppliers, "
+                "contracts, spend, risk, and sourcing strategy."
+            )
         return result
 
     def _intelligent_default(self, td: dict, message: str, module: str) -> str:

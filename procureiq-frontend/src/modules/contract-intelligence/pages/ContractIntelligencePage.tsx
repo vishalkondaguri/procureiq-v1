@@ -478,10 +478,10 @@ export default function ContractIntelligencePage() {
     }), [contracts]);
 
   const summary = kpis
-    ? `Managing ${kpis.total_contracts} contracts worth ${formatCurrency(kpis.total_active_value_usd)} in active value. ` +
-      `${kpis.expiring_within_90_days} contracts expire within 90 days — requiring immediate renewal action. ` +
-      (kpis.expired_contracts > 0 ? `${kpis.expired_contracts} contracts have already expired and represent active commercial risk. ` : '') +
-      `${kpis.contracts_with_ai_analysis} contracts have been AI-analysed by Ignite.`
+    ? `Managing ${kpis.total_contracts ?? 0} contracts worth ${formatCurrency(kpis.total_active_value_usd ?? 0)} in active value. ` +
+      `${kpis.expiring_within_90_days ?? 0} contracts expire within 90 days — requiring immediate renewal action. ` +
+      ((kpis.expired_contracts ?? 0) > 0 ? `${kpis.expired_contracts} contracts have already expired and represent active commercial risk. ` : '') +
+      `${kpis.contracts_with_ai_analysis ?? 0} contracts have been AI-analysed by Ignite.`
     : 'Loading contract intelligence…';
 
   function handleRowClick(row: Record<string, unknown>) {
@@ -522,12 +522,12 @@ export default function ContractIntelligencePage() {
         {/* KPI Ribbon */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
           {[
-            { title: 'Total Contracts',     value: kpis?.total_contracts?.toString() ?? '—',          accentColor: IBM.blue },
-            { title: 'Active',              value: kpis?.active_contracts?.toString() ?? '—',          accentColor: IBM.green },
-            { title: 'Expiring ≤ 90 Days',  value: kpis?.expiring_within_90_days?.toString() ?? '—',  accentColor: IBM.orange },
-            { title: 'Expired',             value: kpis?.expired_contracts?.toString() ?? '—',         accentColor: IBM.red },
-            { title: 'Total Active Value',  value: kpis ? formatCurrency(kpis.total_active_value_usd) : '—', accentColor: IBM.purple },
-            { title: 'AI Analysed',         value: kpis?.contracts_with_ai_analysis?.toString() ?? '—', accentColor: IBM.teal },
+            { title: 'Total Contracts',     value: (kpis?.total_contracts ?? 0).toString(),                   accentColor: IBM.blue },
+            { title: 'Active',              value: (kpis?.active_contracts ?? 0).toString(),                   accentColor: IBM.green },
+            { title: 'Expiring ≤ 90 Days',  value: (kpis?.expiring_within_90_days ?? 0).toString(),           accentColor: IBM.orange },
+            { title: 'Expired',             value: (kpis?.expired_contracts ?? 0).toString(),                  accentColor: IBM.red },
+            { title: 'Total Active Value',  value: formatCurrency(kpis?.total_active_value_usd ?? 0),         accentColor: IBM.purple },
+            { title: 'AI Analysed',         value: (kpis?.contracts_with_ai_analysis ?? 0).toString(),        accentColor: IBM.teal },
           ].map(kpi => (
             <Grid item xs={6} sm={4} md={2} key={kpi.title}>
               <KPICard loading={kpiLoading} {...kpi} />
@@ -568,7 +568,11 @@ export default function ContractIntelligencePage() {
 
           <Grid item xs={12} md={4}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}>
-              {kpis && <ValueAtRiskMeter kpis={kpis as unknown as Record<string, number>} />}
+              {kpis && <ValueAtRiskMeter kpis={{
+                expired_contracts: kpis.expired_contracts ?? 0,
+                expiring_within_90_days: kpis.expiring_within_90_days ?? 0,
+                total_contracts: kpis.total_contracts ?? 1,
+              }} />}
               {criticalContracts.length > 0 && (
                 <Box sx={{ bgcolor: cardBg, border: `1px solid ${IBM.orange}40`, borderRadius: 1, p: 2, flex: 1 }}>
                   <Typography sx={{ fontWeight: 700, fontSize: 12, color: IBM.orange, mb: 1 }}>

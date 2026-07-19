@@ -30,7 +30,7 @@ export function useContractExpiryTimeline() {
     queryKey: ['contract-expiry-timeline'],
     queryFn: async () => {
       const { data } = await apiClient.get<{ timeline: any[] }>('/contracts/expiry-timeline');
-      return data.timeline;
+      return Array.isArray(data?.timeline) ? data.timeline : [];
     },
   });
 }
