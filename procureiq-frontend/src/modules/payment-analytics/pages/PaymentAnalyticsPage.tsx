@@ -8,12 +8,14 @@ import {
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
-  ResponsiveContainer, LineChart, Line, Cell, PieChart, Pie,
+  ResponsiveContainer, LineChart, Line, Cell, PieChart, Pie, ReferenceLine,
 } from 'recharts';
 import PaymentsIcon        from '@mui/icons-material/Payments';
 import ReceiptLongIcon     from '@mui/icons-material/ReceiptLong';
 import AccessTimeIcon      from '@mui/icons-material/AccessTime';
 import WarningAmberIcon    from '@mui/icons-material/WarningAmber';
+import AutoAwesomeIcon     from '@mui/icons-material/AutoAwesome';
+import TrendingUpIcon      from '@mui/icons-material/TrendingUp';
 import { useQuery } from '@tanstack/react-query';
 import KPICard             from '@/core/components/KPICard/KPICard';
 import DataTable, { Column } from '@/core/components/DataTable/DataTable';
@@ -321,6 +323,119 @@ export default function PaymentAnalyticsPage() {
             maxHeight={380}
             loading={agingQ.isLoading}
           />
+        </Box>
+      )}
+
+      {/* DPO Trend + Working Capital Insight */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {/* DPO Trend Chart */}
+        <Grid item xs={12} md={7}>
+          <WidgetCard title="DPO Trend — Days Payable Outstanding" loading={summaryQ.isLoading} icon={<TrendingUpIcon sx={{ fontSize: 16 }} />}>
+            {summary && (
+              <>
+                <Box sx={{ display: 'flex', gap: 3, mb: 1.5 }}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 22, color: IBM.blue }}>{summary.kpis.avg_po_to_invoice_days}</Typography>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Avg DPO (days)</Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 22, color: summary.kpis.avg_po_to_invoice_days < 30 ? IBM.orange : IBM.green }}>
+                      {summary.kpis.avg_po_to_invoice_days < 30 ? 'Below Target' : 'On Target'}
+                    </Typography>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>vs 30-day benchmark</Typography>
+                  </Box>
+                </Box>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={summary.monthly_trend} margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={v => v.slice(5)} />
+                    <YAxis tickFormatter={v => `${v}`} tick={{ fontSize: 10 }} width={36} />
+                    <RTooltip formatter={(v: number) => [`${v}`, 'Invoices']} contentStyle={{ fontSize: 11 }} />
+                    <ReferenceLine y={30} stroke="#f1c21b" strokeDasharray="6 3" strokeWidth={1.5}
+                      label={{ value: '30d target', fill: '#b28600', fontSize: 10, position: 'insideTopRight' }} />
+                    <Line type="monotone" dataKey="invoice_count" stroke={IBM.blue} strokeWidth={2}
+                      dot={{ r: 3, fill: IBM.blue }} activeDot={{ r: 5 }} name="Invoice Count" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            )}
+          </WidgetCard>
+        </Grid>
+
+        {/* Working Capital Calculator */}
+        <Grid item xs={12} md={5}>
+          <WidgetCard title="Working Capital Opportunity" loading={summaryQ.isLoading} icon={<PaymentsIcon sx={{ fontSize: 16 }} />}>
+            {summary && (
+              <Box>
+                {[
+                  { label: 'Current DPO', value: `${summary.kpis.avg_po_to_invoice_days}d`, color: IBM.blue },
+                  { label: 'Target DPO (30d)', value: `30d`, color: IBM.green },
+                  { label: 'Target DPO (45d)', value: `45d`, color: IBM.teal },
+                  { label: 'Target DPO (60d)', value: `60d`, color: IBM.purple },
+                ].map((row, i) => {
+                  const totalSpend = summary.kpis.total_invoiced_amount;
+                  const targetDays = i === 0 ? summary.kpis.avg_po_to_invoice_days : [0, 30, 45, 60][i];
+                  const currentWC = (totalSpend / 365) * summary.kpis.avg_po_to_invoice_days;
+                  const targetWC  = (totalSpend / 365) * targetDays;
+                  const savings   = targetWC - currentWC;
+                  return (
+                    <Box key={row.label} sx={{ mb: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.4 }}>
+                        <Typography sx={{ fontSize: 12, fontWeight: 600, color: row.color }}>{row.label}</Typography>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: savings > 0 ? IBM.green : IBM.red }}>
+                          {i === 0 ? formatCurrency(currentWC) : `+${formatCurrency(Math.abs(savings))}`}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ height: 6, bgcolor: '#f0f0f0', borderRadius: 3 }}>
+                        <Box sx={{ width: `${Math.min(100, (targetDays / 90) * 100)}%`, height: '100%', bgcolor: row.color, borderRadius: 3, opacity: 0.75 }} />
+                      </Box>
+                      <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.3 }}>
+                        {i === 0 ? 'Current working capital tied up in payables' : `WC benefit vs current: ${formatCurrency(Math.abs(savings))}`}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+          </WidgetCard>
+        </Grid>
+      </Grid>
+
+      {/* Ignite AI Payment Insights */}
+      {summary && !summaryQ.isLoading && (
+        <Box sx={{ bgcolor: '#eff4ff', border: '1px solid #d0e2ff', borderRadius: 1.5, p: 2.5, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <AutoAwesomeIcon sx={{ color: IBM.blue, fontSize: 18 }} />
+            <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0043ce' }}>
+              Ignite AI — Payment Intelligence Insights
+            </Typography>
+          </Box>
+          <Grid container spacing={2}>
+            {[
+              {
+                title: 'Payment Terms Standardisation',
+                body: `${summary.kpis.unique_payment_terms} different payment terms are in use across ${summary.top_suppliers.length} suppliers. Standardising to Net-30 or Net-45 across the supplier base will simplify AP reconciliation, reduce late-payment risk, and improve DPO predictability.`,
+                color: IBM.blue,
+              },
+              {
+                title: 'Early Payment Programme',
+                body: `${aging?.overdue_count ?? 0} invoices are aged beyond 60 days totalling ${formatCurrency(aging?.total_aged_amount ?? 0)}. An early payment discount programme (1% Net-10 vs Net-30) could eliminate aged receivables risk and improve supplier relationships by reducing payment uncertainty.`,
+                color: aging && aging.overdue_count > 5 ? IBM.red : IBM.orange,
+              },
+              {
+                title: 'Working Capital Optimisation',
+                body: `At ${summary.kpis.avg_po_to_invoice_days} average DPO, extending payment terms to 45 days across strategic suppliers could free up ${formatCurrency((summary.kpis.total_invoiced_amount / 365) * 15)} in working capital. Use supply chain financing to protect supplier cash flow during extension.`,
+                color: IBM.green,
+              },
+            ].map(insight => (
+              <Grid item xs={12} md={4} key={insight.title}>
+                <Box sx={{ bgcolor: '#fff', border: `1px solid #d0e2ff`, borderRadius: 1, p: 1.75 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: 12, color: insight.color, mb: 0.75 }}>{insight.title}</Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.6 }}>{insight.body}</Typography>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
         </Box>
       )}
 

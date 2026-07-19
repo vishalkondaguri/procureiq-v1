@@ -159,6 +159,43 @@ export default function SavingsEnginePage() {
         </Grid>
       </Grid>
 
+      {/* 30/60/90-Day Pipeline View */}
+      {!isLoading && totalCount > 0 && (
+        <Box sx={{ bgcolor: '#fff', border: '1px solid #e0e0e0', borderRadius: 1, p: 2.5, mb: 3 }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5 }}>Savings Pipeline — 30/60/90-Day Outlook</Typography>
+          <Typography sx={{ fontSize: 11, color: '#525252', mb: 2 }}>Projected savings by implementation window</Typography>
+          <Grid container spacing={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 1, overflow: 'hidden' }}>
+            {[
+              { label: '0–30 Days', desc: 'Quick wins — low effort, approved', color: '#198038', bgColor: '#defbe6', filter: 'low',    pct: 0.3 },
+              { label: '31–60 Days', desc: 'Medium effort — in negotiation',    color: '#f1c21b', bgColor: '#fdf6dd', filter: 'medium', pct: 0.45 },
+              { label: '61–90 Days', desc: 'Strategic — high complexity',       color: '#da1e28', bgColor: '#fff1f1', filter: 'high',   pct: 0.25 },
+            ].map((phase, i) => {
+              const phaseOpps = opportunities.filter((o: any) => o.effort === phase.filter);
+              const phaseValue = phaseOpps.reduce((s: number, o: any) => s + o.estimated_value_usd, 0);
+              const phaseCount = phaseOpps.length;
+              return (
+                <Grid item xs={12} md={4} key={phase.label} sx={{ borderRight: i < 2 ? '1px solid #e0e0e0' : 'none' }}>
+                  <Box sx={{ bgcolor: phase.bgColor, p: 2, borderBottom: '1px solid #e0e0e0' }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 13, color: phase.color }}>{phase.label}</Typography>
+                    <Typography sx={{ fontSize: 11, color: '#525252' }}>{phase.desc}</Typography>
+                  </Box>
+                  <Box sx={{ p: 2 }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: 22, color: phase.color }}>{formatCurrency(phaseValue)}</Typography>
+                    <Typography sx={{ fontSize: 11, color: '#525252', mb: 1 }}>{phaseCount} opportunit{phaseCount !== 1 ? 'ies' : 'y'}</Typography>
+                    <Box sx={{ height: 6, bgcolor: '#f0f0f0', borderRadius: 3 }}>
+                      <Box sx={{ width: `${totalValue > 0 ? (phaseValue / totalValue) * 100 : 0}%`, height: '100%', bgcolor: phase.color, borderRadius: 3 }} />
+                    </Box>
+                    <Typography sx={{ fontSize: 10, color: '#525252', mt: 0.5 }}>
+                      {totalValue > 0 ? ((phaseValue / totalValue) * 100).toFixed(1) : '0'}% of total pipeline
+                    </Typography>
+                  </Box>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Box>
+      )}
+
       {/* Filters */}
       <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <FormControl size="small" sx={{ minWidth: 180 }}>
@@ -232,6 +269,25 @@ export default function SavingsEnginePage() {
             })
         }
       </Grid>
+
+      {/* Divider + Action tracking note */}
+      {totalCount > 0 && !isLoading && (
+        <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid #e0e0e0' }}>
+          <Box sx={{ bgcolor: '#eff4ff', border: '1px solid #d0e2ff', borderRadius: 1, p: 2, display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+            <AutoAwesomeIcon sx={{ fontSize: 16, color: '#0f62fe', flexShrink: 0, mt: 0.2 }} />
+            <Box>
+              <Typography sx={{ fontWeight: 700, fontSize: 12, color: '#0043ce', mb: 0.5 }}>Ignite AI — Savings Realisation Strategy</Typography>
+              <Typography sx={{ fontSize: 12, color: '#525252', lineHeight: 1.6 }}>
+                {formatCurrency(totalValue)} total savings pipeline identified. Prioritise{' '}
+                {opportunities.filter((o: any) => o.effort === 'low').length} low-effort opportunities in the first 30 days to build momentum and demonstrate quick ROI to stakeholders.
+                {' '}Track each opportunity through the pipeline: <strong>Identified → In Progress → Realised</strong>.
+                Update status as negotiations progress to maintain an accurate savings forecast.
+                {' '}Industry benchmark: leading procurement teams realise 65–80% of identified savings within 90 days.
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+      )}
     </Box>
   </DatasetGate>
   );
