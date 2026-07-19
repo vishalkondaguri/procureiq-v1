@@ -8,6 +8,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PrintIcon from '@mui/icons-material/Print';
+import SlideshowIcon from '@mui/icons-material/Slideshow';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -19,6 +20,7 @@ import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ExecutiveSummary from '@/core/components/ExecutiveSummary/ExecutiveSummary';
+import PresentationTour from '../components/PresentationTour';
 
 // ── Documentation Data ─────────────────────────────────────────────────────────
 
@@ -782,6 +784,7 @@ export default function DocumentationPage() {
   const [phaseFilter, setPhaseFilter] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<ModuleDoc | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
 
   const categories = useMemo(() => [...new Set(DOCS.map(d => d.category))], []);
 
@@ -814,6 +817,35 @@ export default function DocumentationPage() {
         ]}
         isLoading={false}
       />
+
+      {/* Presentation CTA */}
+      <Box sx={{
+        mb: 3, p: 2.5, borderRadius: 1, display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
+        background: 'linear-gradient(135deg, #001d6c 0%, #0f62fe 60%, #6929c4 100%)',
+      }}>
+        <SlideshowIcon sx={{ color: 'white', fontSize: 32 }} />
+        <Box sx={{ flex: 1 }}>
+          <Typography sx={{ color: 'white', fontWeight: 800, fontSize: 16, lineHeight: 1.2 }}>
+            Interactive Platform Presentation
+          </Typography>
+          <Typography sx={{ color: '#a6c8ff', fontSize: 12.5, mt: 0.25 }}>
+            Full-screen slideshow · 16 modules · Voice narration · PDF &amp; PowerPoint export
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<SlideshowIcon />}
+          onClick={() => setTourOpen(true)}
+          sx={{
+            bgcolor: 'white', color: '#0f62fe', fontWeight: 700, fontSize: 13,
+            '&:hover': { bgcolor: '#e8f0fe' }, flexShrink: 0,
+          }}
+        >
+          Launch Presentation
+        </Button>
+      </Box>
+
+      <PresentationTour open={tourOpen} onClose={() => setTourOpen(false)} />
 
       {/* Search and filters */}
       <Box sx={{ bgcolor: '#fff', border: '1px solid #e0e0e0', borderRadius: 1, p: 2, mb: 3 }}>
