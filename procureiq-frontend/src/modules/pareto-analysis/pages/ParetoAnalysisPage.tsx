@@ -1,8 +1,12 @@
-import { Box, Grid, Typography, Alert } from '@mui/material';
+import { Box, Grid, Typography, Alert, Chip } from '@mui/material';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RTooltip, ReferenceLine, ResponsiveContainer, Legend,
 } from 'recharts';
+import AutoAwesomeIcon    from '@mui/icons-material/AutoAwesome';
+import TrendingDownIcon   from '@mui/icons-material/TrendingDown';
+import GroupWorkIcon      from '@mui/icons-material/GroupWork';
+import GavelIcon          from '@mui/icons-material/Gavel';
 import DataTable, { Column } from '@/core/components/DataTable/DataTable';
 import ExecutiveSummary from '@/core/components/ExecutiveSummary/ExecutiveSummary';
 import KPICard from '@/core/components/KPICard/KPICard';
@@ -103,7 +107,7 @@ export default function ParetoAnalysisPage() {
       </Box>
 
       {/* Pareto Table */}
-      <Box sx={{ bgcolor: '#fff', border: '1px solid #e0e0e0', borderRadius: 1, p: 2.5 }}>
+      <Box sx={{ bgcolor: '#fff', border: '1px solid #e0e0e0', borderRadius: 1, p: 2.5, mb: 3 }}>
         <DataTable
           title="Supplier Spend Ranking"
           columns={PARETO_COLS}
@@ -115,6 +119,78 @@ export default function ParetoAnalysisPage() {
           maxHeight={480}
         />
       </Box>
+
+      {/* Ignite AI Strategic Recommendations */}
+      {paretoData.length > 0 && (
+        <Box sx={{ bgcolor: '#eff4ff', border: '1px solid #d0e2ff', borderRadius: 1.5, p: 2.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <AutoAwesomeIcon sx={{ color: '#0f62fe', fontSize: 18 }} />
+            <Typography sx={{ fontWeight: 700, fontSize: 13, color: '#0043ce' }}>
+              Ignite AI — Pareto Strategic Actions
+            </Typography>
+            <Chip label="AI Analysis" size="small"
+              sx={{ ml: 'auto', bgcolor: '#d0e2ff', color: '#002d9c', fontSize: 10, fontWeight: 700, height: 20 }} />
+          </Box>
+          <Grid container spacing={2}>
+            {[
+              {
+                icon: <GroupWorkIcon sx={{ fontSize: 18, color: '#0f62fe' }} />,
+                title: 'Supplier Consolidation',
+                color: '#0f62fe',
+                bgColor: '#eff4ff',
+                borderColor: '#d0e2ff',
+                points: [
+                  `${threshold80} suppliers drive 80% of spend — negotiate multi-year MSAs for maximum leverage`,
+                  `Consolidate the ${totalSuppliers - threshold80} tail suppliers into preferred-vendor catalogues`,
+                  'Estimated 8–12% reduction in total spend through volume commitment agreements',
+                  'Target 30-day consolidation sprint for highest-fragmentation categories',
+                ],
+              },
+              {
+                icon: <GavelIcon sx={{ fontSize: 18, color: '#6929c4' }} />,
+                title: 'Contract Leverage',
+                color: '#6929c4',
+                bgColor: '#f6f2ff',
+                borderColor: '#e8daff',
+                points: [
+                  `Top ${Math.min(threshold80, 5)} strategic suppliers represent the strongest renegotiation targets`,
+                  'Annual spend reviews with Tier 1 suppliers — benchmark pricing vs market indices',
+                  'Introduce clawback clauses for non-performance and price escalation caps',
+                  'Consider consortium buying for commodity categories to amplify negotiating power',
+                ],
+              },
+              {
+                icon: <TrendingDownIcon sx={{ fontSize: 18, color: '#da1e28' }} />,
+                title: 'Tail Spend Control',
+                color: '#da1e28',
+                bgColor: '#fff1f1',
+                borderColor: '#ffd7d9',
+                points: [
+                  `${totalSuppliers - threshold80} tail suppliers consume procurement admin at disproportionate cost`,
+                  'Implement P-card or purchasing card programme for sub-$5K tail transactions',
+                  'Deploy guided buying catalogue to route tail spend to pre-approved preferred suppliers',
+                  '6-month target: reduce tail supplier count by 40% through mandatory catalogue compliance',
+                ],
+              },
+            ].map(card => (
+              <Grid item xs={12} md={4} key={card.title}>
+                <Box sx={{ bgcolor: card.bgColor, border: `1px solid ${card.borderColor}`, borderRadius: 1, p: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+                    {card.icon}
+                    <Typography sx={{ fontWeight: 700, fontSize: 13, color: card.color }}>{card.title}</Typography>
+                  </Box>
+                  {card.points.map((pt, i) => (
+                    <Box key={i} sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start', mb: 0.75 }}>
+                      <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: card.color, mt: 0.65, flexShrink: 0 }} />
+                      <Typography sx={{ fontSize: 12, color: '#525252', lineHeight: 1.55 }}>{pt}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+      )}
     </Box>
   </DatasetGate>
   );

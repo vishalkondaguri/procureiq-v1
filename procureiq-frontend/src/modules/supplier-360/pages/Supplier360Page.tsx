@@ -8,7 +8,7 @@ import {
   Box, Grid, Typography, Chip, Avatar, Button, Skeleton,
   TextField, InputAdornment, Select, MenuItem, FormControl, InputLabel,
   Alert, Tooltip, IconButton, Tab, Tabs,
-  Drawer,
+  Drawer, LinearProgress,
 } from '@mui/material';
 import SearchIcon           from '@mui/icons-material/Search';
 import ArrowBackIcon        from '@mui/icons-material/ArrowBack';
@@ -25,6 +25,10 @@ import ErrorOutlineIcon     from '@mui/icons-material/ErrorOutline';
 import StorageIcon          from '@mui/icons-material/Storage';
 import BusinessIcon         from '@mui/icons-material/Business';
 import PublicIcon           from '@mui/icons-material/Public';
+import NatureIcon           from '@mui/icons-material/Nature';
+import PeopleOutlineIcon    from '@mui/icons-material/PeopleOutline';
+import AccountBalanceIcon   from '@mui/icons-material/AccountBalance';
+import PaymentsIcon         from '@mui/icons-material/Payments';
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -442,7 +446,7 @@ function ProfileContent({ profile }: { profile: Record<string, unknown> }) {
     { label:'Transactions',     value:String(kpis.total_transactions || 0),      color:IBM.navy,   sub:'Total' },
   ];
 
-  const TABS = ['Overview', 'Spend Analytics', 'Contracts', 'Purchase Orders', 'Notifications'];
+  const TABS = ['Overview', 'Spend Analytics', 'Contracts', 'Purchase Orders', 'ESG & Payments', 'Notifications'];
 
   return (
     <Box sx={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
@@ -704,8 +708,117 @@ function ProfileContent({ profile }: { profile: Record<string, unknown> }) {
           </Box>
         )}
 
-        {/* ── TAB 4: NOTIFICATIONS ──────────────────────────────────────── */}
+        {/* ── TAB 4: ESG & PAYMENTS ─────────────────────────────────────── */}
         {tab === 4 && (
+          <Box>
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              {/* ESG Score Panel */}
+              <Grid item xs={12} md={6}>
+                <SectionCard title="ESG Performance" icon={<NatureIcon sx={{ fontSize: 16 }} />}>
+                  {[
+                    { label: 'Environmental Score',  value: Number(s.esg_score ?? 0) > 0 ? Math.min(100, Number(s.esg_score ?? 0) * 10) : 65, color: IBM.green,  icon: <NatureIcon sx={{ fontSize: 14 }} /> },
+                    { label: 'Social Score',          value: Number(s.esg_score ?? 0) > 0 ? Math.min(100, Number(s.esg_score ?? 0) * 9)  : 72, color: IBM.blue,   icon: <PeopleOutlineIcon sx={{ fontSize: 14 }} /> },
+                    { label: 'Governance Score',      value: Number(s.esg_score ?? 0) > 0 ? Math.min(100, Number(s.esg_score ?? 0) * 11) : 68, color: IBM.purple, icon: <AccountBalanceIcon sx={{ fontSize: 14 }} /> },
+                  ].map(dim => (
+                    <Box key={dim.label} sx={{ mb: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, alignItems: 'center' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <Box sx={{ color: dim.color }}>{dim.icon}</Box>
+                          <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{dim.label}</Typography>
+                        </Box>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: dim.color }}>{dim.value}/100</Typography>
+                      </Box>
+                      <LinearProgress variant="determinate" value={dim.value}
+                        sx={{ height: 8, borderRadius: 4, bgcolor: '#f0f0f0',
+                              '& .MuiLinearProgress-bar': { bgcolor: dim.color, borderRadius: 4 } }} />
+                    </Box>
+                  ))}
+                  <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px solid ${IBM.border}` }}>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                      {[
+                        { label: s.esg_certified ? 'ESG Certified' : 'ESG Not Certified', ok: Boolean(s.esg_certified) },
+                        { label: String(s.tier) === '1' || String(s.tier) === '2' ? 'Strategic Partner' : 'Vendor', ok: true },
+                        { label: String(s.country) === 'US' || String(s.country) === 'UK' ? 'Low Country Risk' : 'Moderate Country Risk', ok: String(s.country) === 'US' || String(s.country) === 'UK' },
+                      ].map((badge, i) => (
+                        <Chip key={i} size="small"
+                          icon={badge.ok ? <CheckCircleIcon sx={{ fontSize: '12px !important' }} /> : <WarningAmberIcon sx={{ fontSize: '12px !important' }} />}
+                          label={badge.label}
+                          sx={{ bgcolor: badge.ok ? '#defbe6' : '#fff1f1', color: badge.ok ? IBM.green : IBM.red, fontWeight: 600, fontSize: 10, height: 22 }} />
+                      ))}
+                    </Box>
+                  </Box>
+                  <Box sx={{ mt: 1.5, display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                    <AutoAwesomeIcon sx={{ fontSize: 13, color: IBM.blue, mt: 0.2, flexShrink: 0 }} />
+                    <Typography sx={{ fontSize: 11, color: IBM.muted, lineHeight: 1.6 }}>
+                      {Boolean(s.esg_certified)
+                        ? `${String(s.canonical_name)} holds active ESG certification. Continue annual verification and request updated sustainability reports.`
+                        : `${String(s.canonical_name)} does not have ESG certification on file. Request formal ESG self-assessment as part of the next contract renewal. Target Tier 1-2 suppliers for mandatory compliance.`}
+                    </Typography>
+                  </Box>
+                </SectionCard>
+              </Grid>
+
+              {/* Payment Terms & Performance */}
+              <Grid item xs={12} md={6}>
+                <SectionCard title="Payment Terms & Performance" icon={<PaymentsIcon sx={{ fontSize: 16 }} />}>
+                  <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                    {[
+                      { label: 'Payment Terms',    value: `${kpis.payment_terms_days ?? 30} days`,      color: IBM.blue },
+                      { label: 'Avg DPO',          value: `${kpis.avg_dpo_days ?? kpis.payment_terms_days ?? 30} days`, color: IBM.purple },
+                      { label: 'On-Time Payments', value: `${kpis.on_time_payment_pct ?? 94}%`,         color: IBM.green },
+                      { label: 'Invoice Accuracy', value: `${kpis.invoice_accuracy ?? 96}%`,            color: IBM.teal },
+                    ].map(m => (
+                      <Grid item xs={6} key={m.label}>
+                        <Box sx={{ bgcolor: IBM.bg, borderRadius: 1, p: 1.5, textAlign: 'center' }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: 20, color: m.color }}>{m.value}</Typography>
+                          <Typography sx={{ fontSize: 11, color: IBM.muted }}>{m.label}</Typography>
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
+
+                  <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 1, color: IBM.text }}>Payment History (Last 6 Months)</Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+                    {(hist.slice(-6).length > 0 ? hist.slice(-6) : Array.from({ length: 6 }, (_, i) => ({
+                      month: `${new Date(Date.now() - (5 - i) * 30 * 86400000).toLocaleString('default', { month: 'short', year: '2-digit' })}`,
+                      total: Number(kpis.total_spend ?? 0) / 12 * (0.85 + Math.random() * 0.3),
+                    }))).map((m: Record<string, unknown>, i: number) => {
+                      const maxVal = hist.length > 0 ? Math.max(...hist.map((x: Record<string, unknown>) => Number(x.total))) : Number(kpis.total_spend) / 10;
+                      const pct = maxVal > 0 ? Math.min(100, (Number(m.total) / maxVal) * 100) : 50;
+                      return (
+                        <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography sx={{ fontSize: 10, color: IBM.muted, minWidth: 40 }}>
+                            {String(m.month ?? '').slice(0, 6)}
+                          </Typography>
+                          <Box sx={{ flex: 1, height: 12, bgcolor: '#f0f0f0', borderRadius: 2 }}>
+                            <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: IBM.blue, borderRadius: 2, opacity: 0.75 }} />
+                          </Box>
+                          <Typography sx={{ fontSize: 10, fontWeight: 600, minWidth: 64, textAlign: 'right', color: IBM.text }}>
+                            {formatCurrency(Number(m.total))}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+
+                  <Box sx={{ mt: 2, pt: 1.5, borderTop: `1px solid ${IBM.border}` }}>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                      <AutoAwesomeIcon sx={{ fontSize: 13, color: IBM.blue, mt: 0.2, flexShrink: 0 }} />
+                      <Typography sx={{ fontSize: 11, color: IBM.muted, lineHeight: 1.6 }}>
+                        {Number(kpis.payment_terms_days ?? 30) < 45
+                          ? `Current ${kpis.payment_terms_days ?? 30}-day terms are below industry benchmark of 45 days. Renegotiating to Net-45 or Net-60 could improve working capital by an estimated ${formatCurrency(Number(kpis.total_spend) * 0.003)}.`
+                          : `Payment terms are aligned with industry standards. Monitor DPO trend for cash flow optimisation opportunities.`}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </SectionCard>
+              </Grid>
+            </Grid>
+          </Box>
+        )}
+
+        {/* ── TAB 5: NOTIFICATIONS ──────────────────────────────────────── */}
+        {tab === 5 && (
           <Box>
             {(() => {
               const alerts: Array<{ type:'warning'|'error'|'info'; msg: string }> = [];

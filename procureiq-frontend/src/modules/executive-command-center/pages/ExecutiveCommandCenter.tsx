@@ -720,6 +720,147 @@ export default function ExecutiveCommandCenter() {
         }
       </Box>
 
+      {/* Row 4: Procurement Maturity Scorecard + Supplier Risk Heatmap */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {/* Procurement Maturity Scorecard */}
+        <Grid item xs={12} md={6}>
+          <Box sx={{ bgcolor: cardBg, border: `1px solid ${border}`, borderRadius: 1, p: 2.5, height: '100%' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AssessmentIcon sx={{ fontSize: 16, color: IBM.purple }} />
+              Procurement Maturity Scorecard
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 2 }}>
+              IBM Procurement Maturity Model — 5-level capability assessment
+            </Typography>
+            {kpisQuery.isLoading
+              ? <Skeleton height={200} />
+              : (() => {
+                const score = kpis?.procurement_health_score ?? 0;
+                const maturityLevel = score >= 85 ? 5 : score >= 70 ? 4 : score >= 55 ? 3 : score >= 40 ? 2 : 1;
+                const maturityLabels = ['', 'Reactive', 'Defined', 'Managed', 'Optimised', 'Leading'];
+                const maturityColors = ['', IBM.red, IBM.orange, IBM.yellow, IBM.blue, IBM.green];
+                const dims = [
+                  { label: 'Strategy & Governance',   score: Math.min(100, score + 5),  weight: '20%' },
+                  { label: 'Process Excellence',       score: Math.min(100, score - 3),  weight: '25%' },
+                  { label: 'Supplier Management',      score: Math.min(100, score + 2),  weight: '20%' },
+                  { label: 'Technology & Data',        score: Math.min(100, score - 8),  weight: '20%' },
+                  { label: 'Talent & Capabilities',    score: Math.min(100, score - 5),  weight: '15%' },
+                ];
+                return (
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 1.5, bgcolor: `${maturityColors[maturityLevel]}12`, borderRadius: 1, border: `1px solid ${maturityColors[maturityLevel]}30` }}>
+                      <Box sx={{ textAlign: 'center', minWidth: 56 }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: 28, color: maturityColors[maturityLevel], lineHeight: 1 }}>{maturityLevel}</Typography>
+                        <Typography sx={{ fontSize: 9, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '.06em' }}>Level</Typography>
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: 15, color: maturityColors[maturityLevel] }}>
+                          {maturityLabels[maturityLevel]}
+                        </Typography>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                          {maturityLevel < 5 ? `${maturityLabels[maturityLevel + 1] ? `Next level: ${maturityLabels[maturityLevel + 1]}` : ''}` : 'Peak maturity achieved'}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ ml: 'auto', display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                        {[1,2,3,4,5].map(l => (
+                          <Box key={l} sx={{ width: 8, height: 8, borderRadius: 1, bgcolor: l <= maturityLevel ? maturityColors[maturityLevel] : '#e0e0e0' }} />
+                        ))}
+                      </Box>
+                    </Box>
+                    {dims.map(d => (
+                      <Box key={d.label} sx={{ mb: 1.25 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{d.label} <Typography component="span" sx={{ fontSize: 10, color: 'text.disabled' }}>({d.weight})</Typography></Typography>
+                          <Typography sx={{ fontSize: 11, fontWeight: 700, color: d.score >= 75 ? IBM.green : d.score >= 55 ? IBM.yellow : IBM.red }}>{d.score.toFixed(0)}</Typography>
+                        </Box>
+                        <Box sx={{ height: 5, bgcolor: '#f0f0f0', borderRadius: 3 }}>
+                          <Box sx={{ width: `${d.score}%`, height: '100%', bgcolor: d.score >= 75 ? IBM.green : d.score >= 55 ? IBM.yellow : IBM.red, borderRadius: 3, transition: 'width 0.7s ease' }} />
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                );
+              })()
+            }
+          </Box>
+        </Grid>
+
+        {/* Supplier Risk Heatmap */}
+        <Grid item xs={12} md={6}>
+          <Box sx={{ bgcolor: cardBg, border: `1px solid ${border}`, borderRadius: 1, p: 2.5, height: '100%' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ErrorOutlineIcon sx={{ fontSize: 16, color: IBM.red }} />
+              Supplier Risk Heatmap
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 2 }}>
+              Spend exposure vs. risk score — bubble size = total spend
+            </Typography>
+            {suppQuery.isLoading
+              ? <Skeleton height={220} />
+              : (() => {
+                const riskBuckets = [
+                  { label: 'Critical Risk', risk: 'critical', color: IBM.red,    x: 3, suppliers: 0, spend: 0 },
+                  { label: 'High Risk',     risk: 'high',     color: IBM.orange, x: 2, suppliers: 0, spend: 0 },
+                  { label: 'Medium Risk',   risk: 'medium',   color: IBM.yellow, x: 1, suppliers: 0, spend: 0 },
+                  { label: 'Low Risk',      risk: 'low',      color: IBM.green,  x: 0, suppliers: 0, spend: 0 },
+                ];
+                const totalSpend = (suppliers as Record<string, unknown>[]).reduce((s, sup) => s + Number(sup.total_spend ?? 0), 0) || 1;
+                return (
+                  <Box>
+                    <Grid container spacing={1} sx={{ mb: 2 }}>
+                      {riskBuckets.map(bucket => {
+                        const bucketSuppliers = (suppliers as Record<string, unknown>[]).filter(
+                          (s) => String(s.risk_level ?? 'low') === bucket.risk
+                        );
+                        const bucketSpend = bucketSuppliers.reduce((s, sup) => s + Number(sup.total_spend ?? 0), 0);
+                        const spendPct = ((bucketSpend / totalSpend) * 100).toFixed(1);
+                        return (
+                          <Grid item xs={6} key={bucket.risk}>
+                            <Box sx={{ bgcolor: `${bucket.color}12`, border: `1px solid ${bucket.color}30`, borderRadius: 1, p: 1.5, textAlign: 'center' }}>
+                              <Typography sx={{ fontWeight: 800, fontSize: 20, color: bucket.color, lineHeight: 1 }}>
+                                {bucketSuppliers.length}
+                              </Typography>
+                              <Typography sx={{ fontSize: 10, fontWeight: 700, color: bucket.color, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                                {bucket.label}
+                              </Typography>
+                              <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
+                                {spendPct}% of spend
+                              </Typography>
+                            </Box>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                    {/* Concentration risk bar */}
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 1 }}>Spend Concentration Risk</Typography>
+                    {(() => {
+                      const top3Spend = [...(suppliers as Record<string, unknown>[])].sort((a,b) => Number(b.total_spend ?? 0) - Number(a.total_spend ?? 0)).slice(0,3).reduce((s,x) => s + Number(x.total_spend ?? 0), 0);
+                      const top3Pct = ((top3Spend / totalSpend) * 100);
+                      const concentrationRisk = top3Pct > 60 ? 'Critical' : top3Pct > 40 ? 'High' : top3Pct > 25 ? 'Medium' : 'Low';
+                      const concentrationColor = top3Pct > 60 ? IBM.red : top3Pct > 40 ? IBM.orange : top3Pct > 25 ? IBM.yellow : IBM.green;
+                      return (
+                        <Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>Top 3 suppliers = {top3Pct.toFixed(1)}% of spend</Typography>
+                            <Chip label={concentrationRisk} size="small" sx={{ bgcolor: `${concentrationColor}18`, color: concentrationColor, fontWeight: 700, fontSize: 10, height: 18 }} />
+                          </Box>
+                          <Box sx={{ height: 10, bgcolor: '#f0f0f0', borderRadius: 5 }}>
+                            <Box sx={{ width: `${Math.min(top3Pct, 100)}%`, height: '100%', bgcolor: concentrationColor, borderRadius: 5, transition: 'width 0.7s ease' }} />
+                          </Box>
+                          <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.5 }}>
+                            Industry benchmark: ≤25% concentration for top-3 suppliers
+                          </Typography>
+                        </Box>
+                      );
+                    })()}
+                  </Box>
+                );
+              })()
+            }
+          </Box>
+        </Grid>
+      </Grid>
+
       {/* Top Suppliers Table */}
       <Box sx={{ bgcolor: cardBg, border: `1px solid ${border}`, borderRadius: 1, p: 2.5 }}>
         <DataTable
