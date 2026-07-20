@@ -20,12 +20,15 @@ RUN npm run build
 # ── Stage 2: serve static files ───────────────────────────────────────────────
 FROM nginx:1.25-alpine AS runtime
 
+# Install envsubst (part of gettext) for $PORT substitution
+RUN apk add --no-cache gettext
+
 # Copy built assets from stage 1
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Minimal nginx config for SPA (React Router) — index.html fallback
+# Write Nginx config template — uses PORT env var injected by Railway at runtime
 RUN printf 'server {\n\
-    listen 80;\n\
+    listen ${PORT};\n\
     root /usr/share/nginx/html;\n\
     index index.html;\n\
     gzip on;\n\
@@ -37,6 +40,7 @@ RUN printf 'server {\n\
         expires 1y;\n\
         add_header Cache-Control "public, immutable";\n\
     }\n\
-}\n' > /etc/nginx/conf.d/default.conf
+}\n' > /etc/nginx/conf.d/default.conf.template
 
-EXPOSE 80
+# Startup: substitute $PORT into nginx config, then start nginx
+CMD sh -c "envsubst '\$PORT' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"

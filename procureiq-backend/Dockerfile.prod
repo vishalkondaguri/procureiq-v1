@@ -36,6 +36,6 @@ USER procureiq
 
 COPY --chown=procureiq:procureiq . .
 
-# Run Alembic migrations then start uvicorn (single worker per container — scale horizontally)
+# Run Alembic migrations then start uvicorn — PORT is injected by Railway
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*'"]
+CMD sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --proxy-headers --forwarded-allow-ips='*'"
