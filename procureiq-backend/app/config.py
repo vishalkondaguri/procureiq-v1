@@ -4,16 +4,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 
     # ── Application ──────────────────────────────────────────────────────────
     APP_NAME: str = "ProcureIQ"
-    ENVIRONMENT: str = "development"  # development | staging | production
+    ENVIRONMENT: str = "production"  # default to production for Railway safety
     SECRET_KEY: str = "change-me-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # longer for demo convenience
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     # Set to False in production to hide /docs and /redoc
-    SHOW_API_DOCS: bool = True
+    SHOW_API_DOCS: bool = False
 
     # ── Email / SMTP ──────────────────────────────────────────────────────────
     SMTP_HOST: str = "smtp.gmail.com"
@@ -91,7 +91,19 @@ class Settings(BaseSettings):
         return self.OLLAMA_ENABLED
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    # Railway: set ALLOWED_ORIGINS=https://your-frontend.up.railway.app in env vars
+    # Multiple origins can be comma-separated: https://a.com,https://b.com
+    ALLOWED_ORIGINS_STR: str = "http://localhost:3000,http://localhost:5173"
+
+    @property
+    def ALLOWED_ORIGINS(self) -> List[str]:  # type: ignore[override]
+        origins = [o.strip() for o in self.ALLOWED_ORIGINS_STR.split(",") if o.strip()]
+        # Always allow localhost for dev convenience
+        extra = ["http://localhost:3000", "http://localhost:5173"]
+        for e in extra:
+            if e not in origins:
+                origins.append(e)
+        return origins
 
     # ── Celery ───────────────────────────────────────────────────────────────
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"

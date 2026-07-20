@@ -30,12 +30,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /build/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Non-root user for security
-RUN useradd -m -u 1000 procureiq
-USER procureiq
+# Copy application code as root first (so alembic can run)
+COPY . .
 
-COPY --chown=procureiq:procureiq . .
-
-# Run Alembic migrations then start uvicorn — PORT is injected by Railway
-EXPOSE 8000
-CMD sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2 --proxy-headers --forwarded-allow-ips='*'"
+# Run Alembic migrations then start uvicorn — PORT injected by Railway
+# Using shell form so ${PORT:-8000} expansion works correctly
+CMD sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --proxy-headers --forwarded-allow-ips='*'"

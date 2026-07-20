@@ -45,13 +45,15 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS — in production, allow_origins must be the exact public domain(s)
+    # CORS — origins from ALLOWED_ORIGINS_STR env var (comma-separated)
+    # In Railway, set: ALLOWED_ORIGINS_STR=https://your-frontend.up.railway.app
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
+        expose_headers=["Content-Disposition"],
     )
 
     app.add_middleware(SecurityHeadersMiddleware)

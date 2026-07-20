@@ -2,9 +2,11 @@ import axios from 'axios';
 import { getAuthToken, refreshAuthToken } from '@/core/auth/tokenStore';
 
 // In dev: Vite proxy rewrites /api → http://localhost:8000
-// In production (Railway): VITE_API_BASE_URL=https://your-backend.up.railway.app
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/api/v1`
+// In production (Railway): set VITE_API_BASE_URL=https://your-backend.up.railway.app
+// Do NOT include /api/v1 in the env var — it is appended here automatically.
+const _base = import.meta.env.VITE_API_BASE_URL ?? '';
+const API_BASE = _base
+  ? `${_base.replace(/\/$/, '')}/api/v1`
   : '/api/v1';
 
 export const apiClient = axios.create({

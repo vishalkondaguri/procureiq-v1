@@ -1,6 +1,6 @@
 # ════════════════════════════════════════════════════════════════════
 #  ProcureIQ v1.0 — Railway Environment Variables (Backend Service)
-#  Copy these into Railway → Service → Variables tab
+#  Copy ALL of these into Railway → Backend Service → Variables tab
 # ════════════════════════════════════════════════════════════════════
 
 # ── App ──────────────────────────────────────────────────────────────
@@ -9,29 +9,31 @@ APP_NAME=ProcureIQ
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
 SECRET_KEY=REPLACE_WITH_RANDOM_64_CHAR_HEX
 
-# ── Database (Railway provides this automatically if you add PostgreSQL) ──
-# Railway auto-sets DATABASE_URL when you link a Postgres plugin
+# ── Database (Railway provides this automatically if you add PostgreSQL plugin) ──
+# Railway auto-sets DATABASE_URL when you link a Postgres service.
+# Change postgresql:// → postgresql+asyncpg:// so SQLAlchemy async driver works.
 DATABASE_URL=postgresql+asyncpg://USER:PASS@HOST:PORT/DB
 
-# ── Redis (Railway provides this if you add Redis plugin) ────────────
-REDIS_URL=redis://default:PASSWORD@HOST:PORT
+# ── Frontend CORS (CRITICAL — set this to your Railway frontend URL) ──
+# This tells the backend which domain is allowed to make API calls.
+ALLOWED_ORIGINS_STR=https://shimmering-love-production-09b6.up.railway.app
 
-# ── Frontend URL (set AFTER deploying frontend, replace with real URL) ──
-FRONTEND_URL=https://procureiq-frontend.up.railway.app
+# ── Frontend URL (used in password-reset emails) ──
+FRONTEND_URL=https://shimmering-love-production-09b6.up.railway.app
 
-# ── IBM watsonx (optional — Ignite uses smart-offline mode without it) ──
-WATSONX_API_KEY=
-WATSONX_PROJECT_ID=
-WATSONX_URL=https://us-south.ml.cloud.ibm.com
-WATSONX_MODEL_ID=ibm/granite-13b-chat-v2
+# ── API Docs (keep false in production) ──
+SHOW_API_DOCS=false
 
 # ── Storage ──────────────────────────────────────────────────────────
 STORAGE_PROVIDER=local
 STORAGE_LOCAL_PATH=/tmp/procureiq-uploads
 
 # ── Tokens ───────────────────────────────────────────────────────────
-ACCESS_TOKEN_EXPIRE_MINUTES=15
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 REFRESH_TOKEN_EXPIRE_DAYS=7
 
-# ── Docs (hide in production) ─────────────────────────────────────────
-SHOW_API_DOCS=false
+# ── IBM watsonx (optional — Ignite uses smart-offline mode without it) ──
+WATSONX_API_KEY=
+WATSONX_PROJECT_ID=
+WATSONX_URL=https://us-south.ml.cloud.ibm.com
+WATSONX_MODEL_ID=ibm/granite-13b-chat-v2
