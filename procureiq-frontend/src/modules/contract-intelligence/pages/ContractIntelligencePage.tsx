@@ -465,11 +465,13 @@ export default function ContractIntelligencePage() {
   const expiringCount = kpis?.expiring_within_90_days ?? 0;
   const expiredCount  = kpis?.expired_contracts ?? 0;
 
+  const timelineArr: Record<string, unknown>[] = Array.isArray(timeline) ? timeline : [];
+
   const chartData = useMemo(() =>
-    (timeline ?? []).map((t: Record<string, unknown>, i: number, arr: Record<string, unknown>[]) => ({
+    timelineArr.map((t, i, arr) => ({
       ...t,
-      cumulative: arr.slice(0, i + 1).reduce((s: number, r: Record<string, unknown>) => s + Number(r.total_value ?? 0), 0),
-    })), [timeline]);
+      cumulative: arr.slice(0, i + 1).reduce((s: number, r) => s + Number(r.total_value ?? 0), 0),
+    })), [timelineArr]);
 
   const criticalContracts = useMemo(() =>
     contracts.filter((c: Record<string, unknown>) => {
@@ -542,7 +544,7 @@ export default function ContractIntelligencePage() {
               <Typography sx={{ fontWeight: 700, fontSize: 14, mb: 2 }}>
                 Contract Expiry Timeline — Next 12 Months ({CURRENT_YEAR}–{CURRENT_YEAR + 1})
               </Typography>
-              {timeline && timeline.length > 0 ? (
+              {timelineArr.length > 0 ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <ComposedChart data={chartData} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={border} />
