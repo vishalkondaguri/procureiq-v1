@@ -1,5 +1,6 @@
 """ProcureIQ Backend – Application Entry Point"""
 from contextlib import asynccontextmanager
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,21 +10,27 @@ from app.config import settings
 from app.db.session import engine
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # Startup: create tables (dev only — production uses Alembic migrations)
-    if settings.ENVIRONMENT == "development":
+    # Always create tables — safe to run even if alembic already ran
+    # (create_all is idempotent — it skips existing tables)
+    try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables verified/created.")
+    except Exception as exc:
+        logger.warning("Table creation skipped (may already exist): %s", exc)
 
     # Auto-seed demo data if DB is empty (ensures dashboard is never blank)
     try:
         from app.db.seed import auto_seed_if_empty
         await auto_seed_if_empty()
+        logger.info("Demo data seeding complete.")
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).warning("Auto-seed skipped: %s", exc)
+        logger.warning("Auto-seed skipped: %s", exc)
 
     yield
     # Shutdown: nothing to close (async engine handles pool cleanup)
@@ -63,9 +70,15 @@ def create_app() -> FastAPI:
     # Mount API router
     app.include_router(api_router, prefix="/api/v1")
 
+    # Root health check — instant liveness probe (no DB dependency)
     @app.get("/health", tags=["health"])
     async def health_check():
         return {"status": "ok", "environment": settings.ENVIRONMENT, "version": "1.0.0"}
+
+    # Alias at root for Railway healthcheck
+    @app.get("/")
+    async def root():
+        return {"status": "ok", "service": "ProcureIQ API", "version": "1.0.0"}
 
     return app
 
