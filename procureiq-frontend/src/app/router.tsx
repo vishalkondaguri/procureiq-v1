@@ -34,6 +34,7 @@ const ExecutiveReporting     = lazy(() => import('@/modules/executive-reporting/
 // ── Phase 4 stubs ─────────────────────────────────────────────────────────────
 const Documentation          = lazy(() => import('@/modules/documentation/pages/DocumentationPage'));
 const Settings               = lazy(() => import('@/modules/settings/pages/SettingsPage'));
+const BobAutomation          = lazy(() => import('@/modules/bob-automation/pages/BobAutomationPage'));
 
 const S = (el: React.ReactNode) => <Suspense fallback={<LoadingScreen />}>{el}</Suspense>;
 
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
       // Phase 4 (stubs)
       { path: 'documentation',  element: S(<Documentation />) },
       { path: 'settings',       element: S(<Settings />) },
+      { path: 'bob-automation', element: S(<BobAutomation />) },
     ],
   },
 

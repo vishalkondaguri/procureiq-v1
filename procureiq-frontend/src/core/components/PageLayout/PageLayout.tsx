@@ -27,6 +27,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import PaymentsIcon from '@mui/icons-material/Payments';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useAuth } from '@/core/auth/AuthContext';
 import IgniteDrawer from '@/ignite/IgniteDrawer';
 import NotificationCenter, { useNotifications } from '@/core/components/NotificationCenter';
@@ -59,6 +60,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Executive Reporting',       path: '/app/reporting',    icon: <AssessmentIcon />,     phase: 3 },
   { label: 'Documentation',             path: '/app/documentation',icon: <MenuBookIcon /> },
   { label: 'Settings',                  path: '/app/settings',     icon: <SettingsIcon /> },
+  { label: 'IBM Bob Automation',        path: '/app/bob-automation', icon: <SmartToyIcon />, badge: 'BOB' },
 ];
 
 // ── News ticker items ─────────────────────────────────────────────────────────
@@ -188,6 +190,11 @@ export default function PageLayout() {
                       )}
                       {!collapsed && item.phase && item.phase > 1 && (
                         <Typography sx={{ fontSize: 10, color: '#6f6f6f', ml: 1, flexShrink: 0 }}>P{item.phase}</Typography>
+                      )}
+                      {!collapsed && item.badge && (
+                        <Typography sx={{ fontSize: 9, color: '#fff', bgcolor: '#6929c4', borderRadius: 0.5, px: 0.75, ml: 1, flexShrink: 0, fontWeight: 700, letterSpacing: '0.05em' }}>
+                          {item.badge}
+                        </Typography>
                       )}
                     </ListItemButton>
                   </Tooltip>
