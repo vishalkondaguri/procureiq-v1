@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Typography, IconButton, Slider, Tooltip, Chip, LinearProgress,
-  Dialog, DialogContent, Button,
+  Dialog, DialogContent, Button, CircularProgress,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
@@ -13,6 +13,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import SlideshowIcon from '@mui/icons-material/Slideshow';
 import DownloadIcon from '@mui/icons-material/Download';
+import VideocamIcon from '@mui/icons-material/Videocam';
 import CloseIcon from '@mui/icons-material/Close';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
@@ -529,9 +530,12 @@ export default function PresentationTour({ open, onClose }: PresentationTourProp
   const [rate, setRate] = useState(1.0);
   const [fullscreen, setFullscreen] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [recordingSlide, setRecordingSlide] = useState(0);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const slideAreaRef = useRef<HTMLDivElement>(null);
 
   const slide = SLIDES[current];
   const total = SLIDES.length;
@@ -625,6 +629,105 @@ export default function PresentationTour({ open, onClose }: PresentationTourProp
     }
     setFullscreen(f => !f);
   }, [fullscreen]);
+
+  // ── Video export — records the slide area + TTS audio into a WebM file ────────
+  const downloadVideo = useCallback(async () => {
+    if (recording) return;
+
+    // Stop any current speech/playback first
+    stopSpeech();
+    setPlaying(false);
+    if (autoTimer.current) clearTimeout(autoTimer.current);
+
+    setRecording(true);
+    setRecordingSlide(0);
+    goTo(0);
+
+    // Small delay to let the first slide render
+    await new Promise(r => setTimeout(r, 400));
+
+    const el = slideAreaRef.current;
+    if (!el) { setRecording(false); return; }
+
+    // Capture the slide area as a video stream
+    let stream: MediaStream;
+    try {
+      // @ts-expect-error captureStream is not in TS types yet
+      stream = el.closest('dialog, [role="dialog"]')?.captureStream?.()
+        // @ts-expect-error
+        ?? document.querySelector('.MuiDialog-paper')?.captureStream?.();
+    } catch {
+      stream = new MediaStream();
+    }
+
+    // Add audio from speechSynthesis via AudioContext destination
+    const audioCtx = new AudioContext();
+    const dest = audioCtx.createMediaStreamDestination();
+    if (stream) {
+      dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+    } else {
+      stream = dest.stream;
+    }
+
+    const chunks: BlobPart[] = [];
+    let recorder: MediaRecorder | null = null;
+
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8,opus' });
+    } catch {
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch {
+        // MediaRecorder not supported — fallback: just export audio as narration script
+        setRecording(false);
+        alert('Video recording is not supported in your browser.\n\nUse Chrome or Edge for best results.\n\nYou can still use PDF or PPTX export.');
+        return;
+      }
+    }
+
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.start(200);
+
+    // Walk through every slide with TTS narration
+    const PER_SLIDE_MS = 20000;
+    for (let i = 0; i < SLIDES.length; i++) {
+      goTo(i);
+      setRecordingSlide(i);
+      await new Promise(r => setTimeout(r, 300)); // let DOM settle
+
+      // Speak narration
+      const utt = new SpeechSynthesisUtterance(SLIDES[i].narration);
+      utt.rate = 0.95;
+      utt.pitch = 1.0;
+      utt.lang = 'en-US';
+      window.speechSynthesis.speak(utt);
+
+      // Wait for narration to finish OR max slide duration
+      await new Promise<void>(resolve => {
+        const timeout = setTimeout(resolve, PER_SLIDE_MS);
+        utt.onend = () => { clearTimeout(timeout); setTimeout(resolve, 800); };
+      });
+
+      window.speechSynthesis.cancel();
+    }
+
+    recorder.stop();
+
+    await new Promise(r => setTimeout(r, 500));
+
+    // Download the recorded video
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ProcureIQ-v1.0-Presentation.webm';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setRecording(false);
+    goTo(0);
+    audioCtx.close().catch(() => {});
+  }, [recording, stopSpeech, goTo]);
 
   // ── PDF export ───────────────────────────────────────────────────────────────
   const downloadPDF = useCallback(() => {
@@ -869,6 +972,11 @@ ${SLIDES.map((s, i) => `
           <Typography sx={{ color: '#8d8d8d', fontSize: 12 }}>
             {current + 1} / {total}
           </Typography>
+          <Tooltip title={recording ? `Recording slide ${recordingSlide + 1}/${total}…` : 'Record video with voice narration (WebM)'}>
+            <IconButton size="small" onClick={downloadVideo} disabled={recording} sx={{ color: recording ? '#6929c4' : '#8d8d8d', '&:hover': { color: '#be95ff' } }}>
+              {recording ? <CircularProgress size={16} sx={{ color: '#6929c4' }} /> : <VideocamIcon sx={{ fontSize: 18 }} />}
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Download PDF">
             <IconButton size="small" onClick={downloadPDF} sx={{ color: '#8d8d8d', '&:hover': { color: 'white' } }}>
               <PictureAsPdfIcon sx={{ fontSize: 18 }} />
@@ -927,7 +1035,16 @@ ${SLIDES.map((s, i) => `
           </Box>
 
           {/* Main slide */}
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2.5, gap: 2 }}>
+          <Box ref={slideAreaRef} sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', p: 2.5, gap: 2, position: 'relative' }}>
+            {/* Recording overlay */}
+            {recording && (
+              <Box sx={{ position: 'absolute', top: 8, right: 8, zIndex: 10, bgcolor: '#da1e28', color: 'white', borderRadius: 1, px: 1.5, py: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'white', animation: 'pulse 1s infinite' }} />
+                <Typography sx={{ fontSize: 11, fontWeight: 700 }}>
+                  REC {recordingSlide + 1}/{total}
+                </Typography>
+              </Box>
+            )}
 
             {/* Slide header */}
             <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
@@ -1064,6 +1181,16 @@ ${SLIDES.map((s, i) => `
           </Typography>
 
           {/* Download buttons */}
+          <Button
+            size="small"
+            startIcon={recording ? <CircularProgress size={12} sx={{ color: '#be95ff' }} /> : <VideocamIcon sx={{ fontSize: 14 }} />}
+            onClick={downloadVideo}
+            disabled={recording}
+            variant="outlined"
+            sx={{ borderColor: '#333', color: recording ? '#be95ff' : '#c6c6c6', fontSize: 11, py: 0.25, '&:hover': { borderColor: '#6929c4', color: '#be95ff' } }}
+          >
+            {recording ? `REC ${recordingSlide + 1}/${total}` : 'VIDEO'}
+          </Button>
           <Button
             size="small"
             startIcon={<PictureAsPdfIcon sx={{ fontSize: 14 }} />}
